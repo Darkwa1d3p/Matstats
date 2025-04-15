@@ -3,12 +3,13 @@ import pandas as pd
 from PyQt5.QtWidgets import (QMainWindow, QPushButton, QVBoxLayout, QFileDialog, QWidget,
                              QMessageBox, QCheckBox, QLabel, QComboBox, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QSplitter, QGroupBox, QDialog, QLineEdit,
-                             QRadioButton, QButtonGroup)
+                             QRadioButton, QButtonGroup, QScrollArea)
 from PyQt5.QtGui import QDoubleValidator, QIntValidator
 from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from brain import DataProcessor
+from scipy.stats import kstest, expon
 
 class DataAnalyzerGUI(QMainWindow):
     def __init__(self):
@@ -142,9 +143,9 @@ class DataAnalyzerGUI(QMainWindow):
         self.btnDetectAnomalies.setFixedHeight(25)
         analysis_layout.addWidget(self.btnDetectAnomalies)
 
-        # Нова кнопка для експоненціальної сітки
-        self.btnExpGrid = QPushButton("Експ. сітка")
-        self.btnExpGrid.clicked.connect(self.showExponentialGrid)
+        # Нова кнопка для імовірнісної сітки
+        self.btnExpGrid = QPushButton("Ім. сітка")
+        self.btnExpGrid.clicked.connect(self.plot_exponential_distribution)
         self.btnExpGrid.setFixedHeight(25)
         analysis_layout.addWidget(self.btnExpGrid)
         
@@ -454,333 +455,219 @@ class DataAnalyzerGUI(QMainWindow):
             QMessageBox.information(self, "Готово", "Аномалії видалено.")
             parent_dialog.accept()
 
-    def showExponentialGrid(self):
-        """Нова реалізація експоненціальної сітки"""
+    def plot_exponential_distribution(self):
+        """Побудова імовірнісної сітки експоненціального розподілу"""
         if not self.selected_column:
             QMessageBox.warning(self, "Помилка", "Будь ласка, оберіть стовпець.")
             return
 
-        # Отримуємо дані вибраного стовпця
-        data = self.processor.data[self.selected_column].dropna()
-        if data.empty:
-            QMessageBox.warning(self, "Помилка", "Дані відсутні або всі значення є пропусками!")
-            return
-
-        # Перевіряємо, чи всі значення невід'ємні для експоненціального розподілу
-        if (data < 0).any():
-            QMessageBox.warning(self, "Попередження", "Експоненціальний розподіл можливий лише для невід'ємних значень!")
-            return
-
-        # Розрахунок параметру лямбда за методом моментів
-        mean_value = data.mean()
-        if mean_value <= 0:
-            QMessageBox.warning(self, "Помилка", "Середнє значення має бути більше 0 для експоненціального розподілу!")
+        values = self.processor.data[self.selected_column].dropna().values
+        if len(values) == 0:
+            QMessageBox.warning(self, "Попередження", "Немає даних для побудови імовірнісної сітки")
             return
         
-        lambda_param = 1 / mean_value
+        if np.any(values < 0):
+            QMessageBox.warning(self, "Помилка", "Експоненціальний розподіл можливий лише для невід’ємних значень")
+            return
         
-        # Діалогове вікно для налаштування параметрів сітки
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Параметри експоненціальної сітки")
-        dialog.setMinimumWidth(350)
+        self.canvas.figure.clear()
+        ax = self.canvas.figure.add_subplot(111)
+        
+        sorted_values = np.sort(values)
+        n = len(sorted_values)
+        
+        empirical_probs = np.arange(1, n + 1) / (n + 1)
+        y_values = -np.log(1 - empirical_probs)
+        
+        mean = np.mean(values)
+        if mean == 0:
+            QMessageBox.warning(self, "Помилка", "Середнє значення дорівнює нулю. Неможливо оцінити параметр.")
+            return
+        lambda_param = 1 / mean
+        
+        ax.scatter(sorted_values, y_values, color='green', label='Дані', s=50)
+        
+        x_theor = np.linspace(0, np.max(sorted_values) * 1.2, 100)
+        y_theor = lambda_param * x_theor
+        ax.plot(x_theor, y_theor, color='blue', linestyle='--', label=f'Експоненціальний розподіл (λ={lambda_param:.4f})')
+        
+        x_min, x_max = np.min(values), np.max(values)
+        x_range = x_max - x_min if x_max != x_min else 1
+        x_margin = 0.1 * x_range
+        x_lower = max(0, x_min - x_margin)
+        x_upper = x_max + x_margin
+        
+        y_max = np.max(y_values) * 1.2
+        ax.set_xlim(x_lower, x_upper)
+        ax.set_ylim(0, y_max)
+        
+        ax.set_title('Імовірнісна сітка експоненціального розподілу')
+        ax.set_xlabel('Значення (Час очікування, мс)')
+        ax.set_ylabel('-ln(1 - F(x))')
+        ax.legend()
+        ax.grid(True, linestyle='--', alpha=0.7)
+        
+        self.canvas.draw()
+        
+        confidence = 0.95
+        ks_statistic, ks_pvalue = kstest(values, 'expon', args=(0, mean))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        conclusion = "Розподіл відповідає експоненціальному" if ks_statistic < critical_value else "Розподіл не відповідає експоненціальному"
+        ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
+                   f"Критичне значення: {critical_value:.4f}\nP-значення: {ks_pvalue:.4f}\n"
+                   f"Висновок: {conclusion}")
+        
+        self.data_table.setRowCount(1)
+        self.data_table.setColumnCount(1)
+        self.data_table.setHorizontalHeaderLabels(['Інформація'])
+        self.data_table.setItem(0, 0, QTableWidgetItem(ks_text))
+        self.data_table.resizeColumnsToContents()
+
+    def show_help(self):
+        """Показ довідки про програму"""
+        help_text = """
+        <h3>Довідка з використання програми "Моніторинг серверної системи"</h3>
+        
+        <p><b>Основні функції:</b></p>
+        <ul>
+            <li>Завантаження даних з Excel або текстових файлів</li>
+            <li>Обробка пропущених значень</li>
+            <li>Трансформація даних (логарифмування, стандартизація, зсув)</li>
+            <li>Побудова гістограм з різними методами розбиття</li>
+            <li>Аналіз емпіричної функції розподілу (ECDF)</li>
+            <li>Виявлення та видалення аномалій</li>
+            <li>Побудова імовірнісної сітки експоненціального розподілу</li>
+        </ul>
+        
+        <p><b>Порядок роботи:</b></p>
+        <ol>
+            <li>Завантажте файл даних</li>
+            <li>Виберіть стовпець для аналізу</li>
+            <li>За необхідності обробіть пропущені значення</li>
+            <li>Виберіть потрібні опції трансформації</li>
+            <li>Виконайте аналіз даних або побудуйте графіки</li>
+        </ol>
+        
+        <p><b>Контакти для підтримки:</b><br>
+        support@servermonitor.com</p>
+        """
+        
+        help_dialog = QDialog(self)
+        help_dialog.setWindowTitle("Довідка")
+        help_dialog.setMinimumSize(500, 400)
         
         layout = QVBoxLayout()
+        help_label = QLabel(help_text)
+        help_label.setWordWrap(True)
+        help_label.setOpenExternalLinks(True)
         
-        # Параметр λ
-        lambda_layout = QHBoxLayout()
-        lambda_layout.addWidget(QLabel(f"Параметр λ (1/середнє = {lambda_param:.4f}):"))
-        lambda_input = QLineEdit()
-        lambda_input.setText(f"{lambda_param:.4f}")
-        lambda_input.setValidator(QDoubleValidator(0.0001, 1000, 6))
-        lambda_layout.addWidget(lambda_input)
-        layout.addLayout(lambda_layout)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(help_label)
         
-        # Кількість точок сітки
-        points_layout = QHBoxLayout()
-        points_layout.addWidget(QLabel("Кількість точок:"))
-        points_input = QLineEdit()
-        points_input.setText("10")
-        points_input.setValidator(QIntValidator(2, 100))
-        points_layout.addWidget(points_input)
-        layout.addLayout(points_layout)
+        layout.addWidget(scroll_area)
         
-        # Вибір методу розбиття діапазону
-        spacing_group = QGroupBox("Метод розбиття діапазону")
-        spacing_layout = QVBoxLayout()
+        close_button = QPushButton("Закрити")
+        close_button.clicked.connect(help_dialog.accept)
+        layout.addWidget(close_button)
         
-        spacing_method_group = QButtonGroup()
-        radio_linear = QRadioButton("Рівномірний")
-        radio_exponential = QRadioButton("Експоненціальний")
-        radio_custom_range = QRadioButton("Власний діапазон")
-        
-        radio_linear.setChecked(True)
-        
-        spacing_method_group.addButton(radio_linear)
-        spacing_method_group.addButton(radio_exponential)
-        spacing_method_group.addButton(radio_custom_range)
-        
-        spacing_layout.addWidget(radio_linear)
-        spacing_layout.addWidget(radio_exponential)
-        spacing_layout.addWidget(radio_custom_range)
-        
-        # Поля для власного діапазону
-        range_layout = QHBoxLayout()
-        range_layout.addWidget(QLabel("Діапазон:"))
-        
-        min_range = QLineEdit()
-        min_range.setPlaceholderText("Min")
-        min_range.setValidator(QDoubleValidator())
-        min_range.setText("0")
-        min_range.setEnabled(False)
-        range_layout.addWidget(min_range)
-        
-        range_layout.addWidget(QLabel("—"))
-        
-        max_range = QLineEdit()
-        max_range.setPlaceholderText("Max")
-        max_range.setValidator(QDoubleValidator())
-        max_range.setText(f"{data.max() * 1.5:.2f}")
-        max_range.setEnabled(False)
-        range_layout.addWidget(max_range)
-        
-        spacing_layout.addLayout(range_layout)
-        spacing_group.setLayout(spacing_layout)
-        layout.addWidget(spacing_group)
-        
-        # Активація/деактивація полів діапазону
-        def toggle_range_inputs(checked):
-            min_range.setEnabled(checked)
-            max_range.setEnabled(checked)
-        
-        radio_custom_range.toggled.connect(toggle_range_inputs)
-        
-        # Кнопки
-        buttons_layout = QHBoxLayout()
-        ok_button = QPushButton("Побудувати")
-        cancel_button = QPushButton("Скасувати")
-        buttons_layout.addWidget(ok_button)
-        buttons_layout.addWidget(cancel_button)
-        layout.addLayout(buttons_layout)
-        
-        dialog.setLayout(layout)
-        
-        # Обробники кнопок
-        cancel_button.clicked.connect(dialog.reject)
-        ok_button.clicked.connect(lambda: self.buildExponentialGrid(
-            dialog,
-            float(lambda_input.text()),
-            int(points_input.text()),
-            "linear" if radio_linear.isChecked() else ("exponential" if radio_exponential.isChecked() else "custom"),
-            float(min_range.text() if min_range.text() else 0),
-            float(max_range.text() if max_range.text() else data.max() * 1.5),
-            data
-        ))
-        
-        dialog.exec_()
+        help_dialog.setLayout(layout)
+        help_dialog.exec_()
 
-
-
-    def buildExponentialGrid(self, dialog, lambda_param, num_points, spacing_method, min_range, max_range, data):
-        """Побудова простої експоненціальної сітки"""
+    def export_statistics(self):
+        """Експорт статистичних даних"""
+        if self.processor.data is None or self.selected_column is None:
+            QMessageBox.warning(self, "Помилка", "Немає даних для експорту!")
+            return
+        
         try:
-            if lambda_param <= 0:
-                raise ValueError("Параметр λ повинен бути більше 0")
+            fileName, _ = QFileDialog.getSaveFileName(self, "Експорт статистики", "",
+                                                    "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
             
-            if num_points < 2:
-                raise ValueError("Кількість точок повинна бути не менше 2")
+            if not fileName:
+                return
             
-            if min_range < 0:
-                raise ValueError("Мінімальне значення діапазону не може бути від'ємним для експоненціального розподілу")
+            # Збираємо дані з таблиці статистики
+            stats_data = []
+            for row in range(self.stats_table.rowCount()):
+                row_data = []
+                for col in range(self.stats_table.columnCount()):
+                    item = self.stats_table.item(row, col)
+                    row_data.append(item.text() if item is not None else "")
+                stats_data.append(row_data)
             
-            if max_range <= min_range:
-                raise ValueError("Максимальне значення діапазону повинно бути більше мінімального")
+            df_stats = pd.DataFrame(stats_data, columns=["Характеристика", "Зсунена", "Незсунена"])
             
-            # Визначаємо точки сітки в залежності від методу
-            if spacing_method == "linear":
-                x_grid = np.linspace(min_range, max_range, num_points)
-            elif spacing_method == "exponential":
-                base = np.linspace(0, 1, num_points)
-                x_grid = min_range + (max_range - min_range) * (np.exp(base * 3) - 1) / (np.exp(3) - 1)
+            # Зберігаємо файл
+            if fileName.endswith('.xlsx'):
+                df_stats.to_excel(fileName, index=False, engine='openpyxl')
+            elif fileName.endswith('.csv'):
+                df_stats.to_csv(fileName, index=False, encoding='utf-8')
             else:
-                x_grid = np.linspace(min_range, max_range, num_points)
+                fileName += '.xlsx' if '.' not in fileName else ''
+                df_stats.to_excel(fileName, index=False, engine='openpyxl')
             
-            # Обчислюємо функцію розподілу F(x) = 1 - e^(-λx)
-            F_x_grid = 1 - np.exp(-lambda_param * x_grid)
-            
-            # Побудова графіка
-            self.canvas.figure.clear()
-            ax = self.canvas.figure.add_subplot(111)
-            ax.plot(x_grid, F_x_grid, 'bo-', markersize=5)
-            ax.set_xlabel('x')
-            ax.set_ylabel('F(x)')
-            ax.set_title('Експоненціальна сітка')
-            ax.grid(True)
-            
-            # Виведення точок сітки в таблицю
-            table_data = np.column_stack((x_grid, F_x_grid))
-            self.data_table.setRowCount(len(table_data))
-            self.data_table.setColumnCount(2)
-            self.data_table.setHorizontalHeaderLabels(['x', 'F(x)'])
-            
-            for i, row in enumerate(table_data):
-                self.data_table.setItem(i, 0, QTableWidgetItem(f"{row[0]:.6f}"))
-                self.data_table.setItem(i, 1, QTableWidgetItem(f"{row[1]:.6f}"))
-            
-            self.data_table.resizeColumnsToContents()
-            self.canvas.draw()
-            dialog.accept()
-        except ValueError as e:
-            QMessageBox.warning(self, "Помилка", str(e))
+            QMessageBox.information(self, "Успіх", f"Статистику успішно експортовано у файл: {fileName}")
+        
         except Exception as e:
-            QMessageBox.critical(self, "Помилка", f"Під час побудови сітки сталася помилка: {str(e)}")
-def closeEvent(self, event):
-    """Обробка закриття вікна програми"""
-    reply = QMessageBox.question(self, 'Завершення роботи',
-                                'Ви впевнені, що хочете вийти?',
-                                QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            QMessageBox.critical(self, "Помилка експорту", f"Не вдалося експортувати статистику: {str(e)}")
 
-    if reply == QMessageBox.Yes:
-        event.accept()
-    else:
-        event.ignore()
+    def closeEvent(self, event):
+        """Обробка закриття вікна програми"""
+        reply = QMessageBox.question(self, 'Завершення роботи',
+                                    'Ви впевнені, що хочете вийти?',
+                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
-def save_results(self):
-    """Збереження результатів аналізу"""
-    if self.processor.data is None:
-        QMessageBox.warning(self, "Помилка", "Немає даних для збереження!")
-        return
-    
-    try:
-        fileName, _ = QFileDialog.getSaveFileName(self, "Зберегти результати", "",
-                                                "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
-        
-        if not fileName:
+        if reply == QMessageBox.Yes:
+            event.accept()
+        else:
+            event.ignore()
+
+    def save_results(self):
+        """Збереження результатів аналізу"""
+        if self.processor.data is None:
+            QMessageBox.warning(self, "Помилка", "Немає даних для збереження!")
             return
         
-        if fileName.endswith('.xlsx'):
-            self.processor.data.to_excel(fileName, index=False)
-        elif fileName.endswith('.csv'):
-            self.processor.data.to_csv(fileName, index=False)
-        else:
-            if '.' not in fileName:
-                fileName += '.xlsx'
+        try:
+            fileName, _ = QFileDialog.getSaveFileName(self, "Зберегти результати", "",
+                                                    "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
+            
+            if not fileName:
+                return
+            
+            if fileName.endswith('.xlsx'):
                 self.processor.data.to_excel(fileName, index=False)
+            elif fileName.endswith('.csv'):
+                self.processor.data.to_csv(fileName, index=False)
+            else:
+                if '.' not in fileName:
+                    fileName += '.xlsx'
+                    self.processor.data.to_excel(fileName, index=False)
+            
+            QMessageBox.information(self, "Успіх", f"Дані успішно збережено у файл: {fileName}")
         
-        QMessageBox.information(self, "Успіх", f"Дані успішно збережено у файл: {fileName}")
-    
-    except Exception as e:
-        QMessageBox.critical(self, "Помилка збереження", f"Не вдалося зберегти файл: {str(e)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Помилка збереження", f"Не вдалося зберегти файл: {str(e)}")
 
-def show_help(self):
-    """Показ довідки про програму"""
-    help_text = """
-    <h3>Довідка з використання програми "Моніторинг серверної системи"</h3>
-    
-    <p><b>Основні функції:</b></p>
-    <ul>
-        <li>Завантаження даних з Excel або текстових файлів</li>
-        <li>Обробка пропущених значень</li>
-        <li>Трансформація даних (логарифмування, стандартизація, зсув)</li>
-        <li>Побудова гістограм з різними методами розбиття</li>
-        <li>Аналіз емпіричної функції розподілу (ECDF)</li>
-        <li>Виявлення та видалення аномалій</li>
-        <li>Побудова експоненціальної сітки</li>
-    </ul>
-    
-    <p><b>Порядок роботи:</b></p>
-    <ol>
-        <li>Завантажте файл даних</li>
-        <li>Виберіть стовпець для аналізу</li>
-        <li>За необхідності обробіть пропущені значення</li>
-        <li>Виберіть потрібні опції трансформації</li>
-        <li>Виконайте аналіз даних або побудуйте графіки</li>
-    </ol>
-    
-    <p><b>Контакти для підтримки:</b><br>
-    example@domain.com</p>
-    """
-    
-    help_dialog = QDialog(self)
-    help_dialog.setWindowTitle("Довідка")
-    help_dialog.setMinimumSize(500, 400)
-    
-    layout = QVBoxLayout()
-    help_label = QLabel(help_text)
-    help_label.setWordWrap(True)
-    help_label.setOpenExternalLinks(True)
-    
-    scroll_area = QScrollArea()
-    scroll_area.setWidgetResizable(True)
-    scroll_area.setWidget(help_label)
-    
-    layout.addWidget(scroll_area)
-    
-    close_button = QPushButton("Закрити")
-    close_button.clicked.connect(help_dialog.accept)
-    layout.addWidget(close_button)
-    
-    help_dialog.setLayout(layout)
-    help_dialog.exec_()
-
-def export_statistics(self):
-    """Експорт статистичних даних"""
-    if self.processor.data is None or self.selected_column is None:
-        QMessageBox.warning(self, "Помилка", "Немає даних для експорту!")
-        return
-    
-    try:
-        fileName, _ = QFileDialog.getSaveFileName(self, "Експорт статистики", "",
-                                                "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
-        
-        if not fileName:
+    def save_chart(self):
+        """Збереження поточного графіка"""
+        if self.processor.data is None:
+            QMessageBox.warning(self, "Помилка", "Немає графіка для збереження!")
             return
         
-        # Збираємо дані з таблиці статистики
-        stats_data = []
-        for row in range(self.stats_table.rowCount()):
-            row_data = []
-            for col in range(self.stats_table.columnCount()):
-                item = self.stats_table.item(row, col)
-                if item is not None:
-                    row_data.append(item.text())
-                else:
-                    row_data.append("")
-            stats_data.append(row_data)
+        try:
+            fileName, _ = QFileDialog.getSaveFileName(self, "Зберегти графік", "",
+                                                    "PNG Files (*.png);;PDF Files (*.pdf);;All Files (*)")
+            
+            if not fileName:
+                return
+            
+            if not (fileName.endswith('.png') or fileName.endswith('.pdf')):
+                fileName += '.png'
+            
+            self.canvas.figure.savefig(fileName, dpi=300, bbox_inches='tight')
+            QMessageBox.information(self, "Успіх", f"Графік успішно збережено у файл: {fileName}")
         
-        df_stats = pd.DataFrame(stats_data, columns=["Характеристика", "Зсунена", "Незсунена"])
-        
-        if fileName.endswith('.xlsx'):
-            df_stats.to_excel(fileName, index=False)
-        elif fileName.endswith('.csv'):
-            df_stats.to_csv(fileName, index=False)
-        else:
-            if '.' not in fileName:
-                fileName += '.xlsx'
-                df_stats.to_excel(fileName, index=False)
-        
-        QMessageBox.information(self, "Успіх", f"Статистику успішно експортовано у файл: {fileName}")
-    
-    except Exception as e:
-        QMessageBox.critical(self, "Помилка експорту", f"Не вдалося експортувати статистику: {str(e)}")
-
-def save_chart(self):
-    """Збереження поточного графіка"""
-    if self.processor.data is None:
-        QMessageBox.warning(self, "Помилка", "Немає графіка для збереження!")
-        return
-    
-    try:
-        fileName, _ = QFileDialog.getSaveFileName(self, "Зберегти графік", "",
-                                                "PNG Files (*.png);;PDF Files (*.pdf);;All Files (*)")
-        
-        if not fileName:
-            return
-        
-        if not (fileName.endswith('.png') or fileName.endswith('.pdf')):
-            fileName += '.png'
-        
-        self.canvas.figure.savefig(fileName, dpi=300, bbox_inches='tight')
-        QMessageBox.information(self, "Успіх", f"Графік успішно збережено у файл: {fileName}")
-    
-    except Exception as e:
-        QMessageBox.critical(self, "Помилка збереження", f"Не вдалося зберегти графік: {str(e)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Помилка збереження", f"Не вдалося зберегти графік: {str(e)}")
