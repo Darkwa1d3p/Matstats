@@ -1,149 +1,187 @@
-import tkinter as tk
-from tkinter import ttk
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+                             QLineEdit, QLabel, QTabWidget, QTableWidget, QTableWidgetItem,
+                             QDoubleSpinBox, QSpinBox, QTextEdit, QComboBox)
+from PyQt5.QtCore import Qt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 
-def create_gui(root):
-    notebook = ttk.Notebook(root)
-    notebook.pack(fill='both', expand=True)
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Статистичний аналіз")
+        self.init_ui()
 
-    # Дві вкладки: основний аналіз і розподіли
-    tab1 = ttk.Frame(notebook)
-    tab2 = ttk.Frame(notebook)
-    notebook.add(tab1, text='Основний аналіз')
-    notebook.add(tab2, text='Розподіли')
+    def init_ui(self):
+        # Основний віджет
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QHBoxLayout(central_widget)
 
-    # Вкладка 1: Основний аналіз
-    canvas = tk.Canvas(tab1)
-    scrollbar = tk.Scrollbar(tab1, orient="vertical", command=canvas.yview)
-    scrollable_frame = tk.Frame(canvas)
-    canvas.configure(yscrollcommand=scrollbar.set)
-    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-    scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        # Лівий блок (керування)
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        main_layout.addWidget(left_widget, 1)
 
-    load_button = tk.Button(scrollable_frame, text="Завантажити дані")
-    load_button.pack(fill=tk.X, pady=5)
+        # Вкладки
+        self.tabs = QTabWidget()
+        left_layout.addWidget(self.tabs)
 
-    bin_label = tk.Label(scrollable_frame, text="Кількість класів для гістограми:")
-    bin_label.pack()
-    bin_count_var = tk.IntVar(value=0)
-    bin_entry = tk.Entry(scrollable_frame, textvariable=bin_count_var)
-    bin_entry.pack()
+        # Вкладка 1: Основний аналіз
+        tab1 = QWidget()
+        tab1_layout = QVBoxLayout(tab1)
+        self.tabs.addTab(tab1, "Основний аналіз")
 
-    update_button = tk.Button(scrollable_frame, text="Оновити гістограму")  # Об’єднана кнопка
-    update_button.pack(fill=tk.X, pady=5)
+        # Кнопка завантаження даних
+        self.load_button = QPushButton("Завантажити дані")
+        tab1_layout.addWidget(self.load_button)
 
-    info_text = tk.StringVar()
-    info_label = tk.Label(scrollable_frame, textvariable=info_text, justify=tk.LEFT)
-    info_label.pack()
+        # Кількість класів для гістограми
+        bin_layout = QHBoxLayout()
+        bin_label = QLabel("Кількість класів для гістограми:")
+        self.bin_entry = QSpinBox()
+        self.bin_entry.setMinimum(0)
+        self.bin_entry.setValue(0)
+        bin_layout.addWidget(bin_label)
+        bin_layout.addWidget(self.bin_entry)
+        tab1_layout.addLayout(bin_layout)
 
-    confidence_label = tk.Label(scrollable_frame, text="Рівень довіри (%):")
-    confidence_label.pack()
-    confidence_var = tk.DoubleVar(value=95.0)
-    confidence_entry = tk.Entry(scrollable_frame, textvariable=confidence_var)
-    confidence_entry.pack()
+        # Кнопка оновлення гістограми
+        self.update_button = QPushButton("Оновити гістограму")
+        tab1_layout.addWidget(self.update_button)
 
-    precision_label = tk.Label(scrollable_frame, text="Точність (знаки після коми):")
-    precision_label.pack()
-    precision_var = tk.IntVar(value=4)
-    precision_entry = tk.Entry(scrollable_frame, textvariable=precision_var)
-    precision_entry.pack()
+        # Інформація
+        self.info_label = QLabel("Кількість класів: -\nКрок розбиття: -\nРозмах: -\nКількість даних: -")
+        self.info_label.setAlignment(Qt.AlignLeft)
+        tab1_layout.addWidget(self.info_label)
 
-    bounds_frame = ttk.LabelFrame(scrollable_frame, text="Встановлення границь", padding=(5, 5))
-    bounds_frame.pack(fill='x', pady=10)
-    lower_frame = tk.Frame(bounds_frame)
-    lower_frame.pack(fill='x', pady=2)
-    lower_label = tk.Label(lower_frame, text="Нижня границя:", width=15, anchor='w')
-    lower_label.pack(side=tk.LEFT)
-    lower_bound_var = tk.StringVar()
-    lower_entry = tk.Entry(lower_frame, textvariable=lower_bound_var)
-    lower_entry.pack(side=tk.LEFT, fill='x', expand=True)
+        # Рівень довіри
+        confidence_layout = QHBoxLayout()
+        confidence_label = QLabel("Рівень довіри (%):")
+        self.confidence_entry = QDoubleSpinBox()
+        self.confidence_entry.setMinimum(0)
+        self.confidence_entry.setMaximum(100)
+        self.confidence_entry.setValue(95.0)
+        confidence_layout.addWidget(confidence_label)
+        confidence_layout.addWidget(self.confidence_entry)
+        tab1_layout.addLayout(confidence_layout)
 
-    upper_frame = tk.Frame(bounds_frame)
-    upper_frame.pack(fill='x', pady=2)
-    upper_label = tk.Label(upper_frame, text="Верхня границя:", width=15, anchor='w')
-    upper_label.pack(side=tk.LEFT)
-    upper_bound_var = tk.StringVar()
-    upper_entry = tk.Entry(upper_frame, textvariable=upper_bound_var)
-    upper_entry.pack(side=tk.LEFT, fill='x', expand=True)
+        # Точність
+        precision_layout = QHBoxLayout()
+        precision_label = QLabel("Точність (знаки після коми):")
+        self.precision_entry = QSpinBox()
+        self.precision_entry.setMinimum(0)
+        self.precision_entry.setMaximum(10)
+        self.precision_entry.setValue(4)
+        precision_layout.addWidget(precision_label)
+        precision_layout.addWidget(self.precision_entry)
+        tab1_layout.addLayout(precision_layout)
 
-    apply_bounds_btn = tk.Button(bounds_frame, text="Застосувати границі")
-    apply_bounds_btn.pack(fill=tk.X, pady=5)
+        # Границі
+        bounds_widget = QWidget()
+        bounds_layout = QVBoxLayout(bounds_widget)
+        bounds_layout.addWidget(QLabel("Встановлення границь"))
+        lower_layout = QHBoxLayout()
+        lower_label = QLabel("Нижня границя:")
+        self.lower_entry = QLineEdit()
+        lower_layout.addWidget(lower_label)
+        lower_layout.addWidget(self.lower_entry)
+        bounds_layout.addLayout(lower_layout)
+        upper_layout = QHBoxLayout()
+        upper_label = QLabel("Верхня границя:")
+        self.upper_entry = QLineEdit()
+        upper_layout.addWidget(upper_label)
+        upper_layout.addWidget(self.upper_entry)
+        bounds_layout.addLayout(upper_layout)
+        self.apply_bounds_btn = QPushButton("Застосувати границі")
+        bounds_layout.addWidget(self.apply_bounds_btn)
+        tab1_layout.addWidget(bounds_widget)
 
-    edit_frame = ttk.LabelFrame(scrollable_frame, text="Редагування даних", padding=(5, 5))
-    edit_frame.pack(fill='x', pady=10)
-    standardize_btn = tk.Button(edit_frame, text="Стандартизувати", state=tk.DISABLED)
-    standardize_btn.pack(fill=tk.X, pady=2)
-    log_btn = tk.Button(edit_frame, text="Логарифмувати", state=tk.DISABLED)  # Залишено
-    log_btn.pack(fill=tk.X, pady=2)
-    shift_btn = tk.Button(edit_frame, text="Зсунути", state=tk.DISABLED)  # Залишено
-    shift_btn.pack(fill=tk.X, pady=2)
-    outliers_btn = tk.Button(edit_frame, text="Вилучити аномальні дані", state=tk.DISABLED)
-    outliers_btn.pack(fill=tk.X, pady=2)
-    reset_btn = tk.Button(edit_frame, text="Скинути дані", state=tk.DISABLED)
-    reset_btn.pack(fill=tk.X, pady=2)
+        # Редагування даних
+        edit_widget = QWidget()
+        edit_layout = QVBoxLayout(edit_widget)
+        edit_layout.addWidget(QLabel("Редагування даних"))
+        self.standardize_btn = QPushButton("Стандартизувати")
+        self.standardize_btn.setEnabled(False)
+        edit_layout.addWidget(self.standardize_btn)
+        self.log_btn = QPushButton("Логарифмувати")
+        self.log_btn.setEnabled(False)
+        edit_layout.addWidget(self.log_btn)
+        self.shift_btn = QPushButton("Зсунути")
+        self.shift_btn.setEnabled(False)
+        edit_layout.addWidget(self.shift_btn)
+        self.outliers_btn = QPushButton("Вилучити аномальні дані")
+        self.outliers_btn.setEnabled(False)
+        edit_layout.addWidget(self.outliers_btn)
+        self.reset_btn = QPushButton("Скинути дані")
+        self.reset_btn.setEnabled(False)
+        edit_layout.addWidget(self.reset_btn)
+        tab1_layout.addWidget(edit_widget)
 
-    editing_buttons = [standardize_btn, log_btn, shift_btn, outliers_btn, reset_btn, apply_bounds_btn]
+        # Вибір розподілу та кнопка
+        distro_layout = QHBoxLayout()
+        distro_label = QLabel("Тип розподілу:")
+        self.distro_combo = QComboBox()
+        self.distro_combo.addItems(["Нормальний", "Експоненціальний"])
+        distro_layout.addWidget(distro_label)
+        distro_layout.addWidget(self.distro_combo)
+        tab1_layout.addLayout(distro_layout)
+        self.plot_distro_btn = QPushButton("Побудувати розподіл")
+        self.plot_distro_btn.setEnabled(False)
+        tab1_layout.addWidget(self.plot_distro_btn)
 
-    # Випадаюче меню для вибору розподілу
-    distro_var = tk.StringVar(value="Нормальний")
-    distro_menu = ttk.OptionMenu(scrollable_frame, distro_var, "Нормальний", "Нормальний", "Експоненціальний")
-    distro_menu.pack(fill=tk.X, pady=5)
-    plot_distro_btn = tk.Button(scrollable_frame, text="Побудувати розподіл", state=tk.DISABLED)
-    plot_distro_btn.pack(fill=tk.X, pady=5)
+        # Таблиця характеристик
+        self.char_table = QTableWidget()
+        self.char_table.setRowCount(10)
+        self.char_table.setColumnCount(3)
+        self.char_table.setHorizontalHeaderLabels(["Характеристика", "Зсунена", "Незсунена"])
+        self.char_table.setColumnWidth(0, 150)
+        self.char_table.setColumnWidth(1, 100)
+        self.char_table.setColumnWidth(2, 100)
+        tab1_layout.addWidget(self.char_table)
 
-    char_frame = ttk.LabelFrame(scrollable_frame, text="Точкові характеристики", padding=(5, 5))
-    char_frame.pack(fill='x', pady=10)
-    char_table = ttk.Treeview(char_frame, columns=("characteristic", "biased", "unbiased"), show="headings", height=10)
-    char_table.heading("characteristic", text="Характеристика")
-    char_table.heading("biased", text="Зсунена")
-    char_table.heading("unbiased", text="Незсунена")
-    char_table.column("characteristic", width=150)
-    char_table.column("biased", width=100)
-    char_table.column("unbiased", width=100)
-    char_table.pack(fill='x')
+        # Текстове поле для даних
+        data_widget = QWidget()
+        data_layout = QVBoxLayout(data_widget)
+        data_layout.addWidget(QLabel("Дані"))
+        self.data_box = QTextEdit()
+        data_layout.addWidget(self.data_box)
+        self.save_btn = QPushButton("Зберегти дані")
+        self.save_btn.setEnabled(False)
+        data_layout.addWidget(self.save_btn)
+        tab1_layout.addWidget(data_widget)
 
-    data_frame = ttk.LabelFrame(scrollable_frame, text="Дані", padding=(5, 5))
-    data_frame.pack(fill='both', expand=True, pady=10)
-    data_box = tk.Text(data_frame, height=10, width=30, wrap=tk.WORD)
-    data_box.pack(fill='both', expand=True)
-    data_scroll = tk.Scrollbar(data_box, command=data_box.yview)
-    data_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-    data_box.config(yscrollcommand=data_scroll.set)
+        # Правий блок (графіки)
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        main_layout.addWidget(right_widget, 2)
 
-    save_btn = tk.Button(data_frame, text="Зберегти дані", state=tk.DISABLED)
-    save_btn.pack(fill=tk.X, pady=2)
-    editing_buttons.append(save_btn)
+        # Вкладки для графіків
+        self.graph_tabs = QTabWidget()
+        right_layout.addWidget(self.graph_tabs)
 
-    fig, hist_ax = plt.subplots(figsize=(8, 6))
-    hist_canvas = FigureCanvasTkAgg(fig, master=tab1)
-    hist_canvas.get_tk_widget().pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        # Вкладка з гістограмою
+        self.hist_tab = QWidget()
+        hist_layout = QVBoxLayout(self.hist_tab)
+        self.graph_tabs.addTab(self.hist_tab, "Гістограма")
 
-    return {
-        'bin_count_var': bin_count_var,
-        'info_text': info_text,
-        'lower_bound_var': lower_bound_var,
-        'upper_bound_var': upper_bound_var,
-        'editing_buttons': editing_buttons,
-        'plot_distro_btn': plot_distro_btn,
-        'distro_var': distro_var,
-        'char_table': char_table,
-        'data_box': data_box,
-        'fig': fig,
-        'hist_ax': hist_ax,
-        'hist_canvas': hist_canvas,
-        'tab2': tab2,
-        'load_button': load_button,
-        'update_button': update_button,
-        'apply_bounds_btn': apply_bounds_btn,
-        'standardize_btn': standardize_btn,
-        'log_btn': log_btn,  # Додано
-        'shift_btn': shift_btn,  # Додано
-        'outliers_btn': outliers_btn,
-        'reset_btn': reset_btn,
-        'save_btn': save_btn,
-        'confidence_var': confidence_var,
-        'precision_var': precision_var
-    }
+        self.hist_fig, self.hist_ax = plt.subplots(figsize=(8, 6))
+        self.hist_canvas = FigureCanvas(self.hist_fig)
+        hist_layout.addWidget(self.hist_canvas)
+
+        # Вкладка з розподілами
+        self.distro_tab = QWidget()
+        distro_layout = QVBoxLayout(self.distro_tab)
+        self.graph_tabs.addTab(self.distro_tab, "Розподіли")
+
+        self.distro_fig, self.distro_ax = plt.subplots(figsize=(8, 6))
+        self.distro_canvas = FigureCanvas(self.distro_fig)
+        distro_layout.addWidget(self.distro_canvas)
+
+        self.distro_info_label = QLabel("")
+        distro_layout.addWidget(self.distro_info_label)
+
+        # Список кнопок редагування для активації після завантаження
+        self.editing_buttons = [
+            self.standardize_btn, self.log_btn, self.shift_btn,
+            self.outliers_btn, self.reset_btn, self.apply_bounds_btn, self.save_btn
+        ]
