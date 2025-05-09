@@ -282,43 +282,55 @@ def plot_distribution():
         empirical_probs = np.arange(1, n + 1) / (n + 1)
         y_values = -np.log(1 - empirical_probs)
         
+        # Нормалізуємо y_values, щоб максимум був 1
+        y_max = np.max(y_values)
+        if y_max > 0:  # Уникаємо ділення на 0
+            y_values_normalized = y_values / y_max
+        else:
+            y_values_normalized = y_values  # Якщо y_max == 0, залишаємо без змін
+        
         mean = np.mean(values)
         if mean == 0:
             QMessageBox.critical(gui, "Помилка", "Середнє значення дорівнює нулю. Неможливо оцінити параметр.")
             return
         lambda_param = 1 / mean
         
-        gui.distro_ax.scatter(sorted_values, y_values, color='green', label='Дані', s=50)
+        # Відображаємо нормалізовані емпіричні дані
+        gui.distro_ax.scatter(sorted_values, y_values_normalized, color='green', label='Дані', s=50)
         
+        # Теоретична пряма, також нормалізована
         x_theor = np.linspace(0, np.max(sorted_values) * 1.2, 100)
         y_theor = lambda_param * x_theor
-        gui.distro_ax.plot(x_theor, y_theor, color='blue', linestyle='--', label=f'Експоненціальний розподіл (λ={lambda_param:.4f})')
+        if y_max > 0:  # Нормалізуємо теоретичну пряму відповідно до емпіричних даних
+            y_theor_normalized = y_theor / y_max
+        else:
+            y_theor_normalized = y_theor
+        gui.distro_ax.plot(x_theor, y_theor_normalized, color='blue', linestyle='--', label=f'Експоненціальний розподіл (λ={lambda_param:.4f})')
         
+        # Встановлення меж графіка
         x_min, x_max = np.min(values), np.max(values)
         x_range = x_max - x_min if x_max != x_min else 1
         x_margin = 0.1 * x_range
         x_lower = max(0, x_min - x_margin)
         x_upper = x_max + x_margin
-        y_max = np.max(y_values) * 1.2
         gui.distro_ax.set_xlim(x_lower, x_upper)
-        gui.distro_ax.set_ylim(0, y_max)
+        gui.distro_ax.set_ylim(0, 1.1)  # Обмежуємо Y до 1 з невеликим запасом
         
         gui.distro_ax.set_title('Імовірнісна сітка експоненціального розподілу')
         gui.distro_ax.set_xlabel('Значення (Час очікування, хв)')
-        gui.distro_ax.set_ylabel('-ln(1 - F(x))')
+        gui.distro_ax.set_ylabel('Нормалізоване -ln(1 - F(x))')
         ks_statistic, ks_pvalue = kstest(values, 'expon', args=(0, mean))
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл відповідає експоненціальному" if ks_statistic < critical_value else "Розподіл не відповідає експоненціальному"
-    
-    gui.distro_ax.legend()
-    gui.distro_ax.grid(True, linestyle='--', alpha=0.7)
-    gui.distro_canvas.draw()
-    
-    ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
-               f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
-               f"Висновок: {conclusion}")
-    gui.distro_info_label.setText(ks_text)
-
+        
+        gui.distro_ax.legend()
+        gui.distro_ax.grid(True, linestyle='--', alpha=0.7)
+        gui.distro_canvas.draw()
+        
+        ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
+                f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                f"Висновок: {conclusion}")
+        gui.distro_info_label.setText(ks_text)
 def standardize_data():
     global values
     if len(values) == 0:
