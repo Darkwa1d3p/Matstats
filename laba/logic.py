@@ -396,7 +396,7 @@ def plot_distribution():
         gui.distro_ax.set_ylabel('Щільність')
         gui.distro_ax.legend()
         
-        # Тест Колмогорова-Смірнова
+        # Тест Колмогорова-Sмірнова
         ks_statistic, ks_pvalue = kstest(values, 'norm', args=(mean, std))
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл відповідає нормальному" if ks_statistic < critical_value else "Розподіл не відповідає нормальному"
@@ -553,6 +553,44 @@ def plot_distribution():
                        f"T-статистика={res['lambda_t_stat']:.4f}, p-value={res['lambda_p_value']:.4f}\n"
                        f"k: середнє={res['k_mean']:.4f}, std={res['k_std']:.4f}, "
                        f"T-статистика={res['k_t_stat']:.4f}, p-value={res['k_p_value']:.4f}\n")
+        
+        gui.distro_info_label.setText(ks_text)
+    
+    elif distro_type == "Уніформний (гістограма)":
+        # Оцінка параметрів уніформного розподілу (min і max значень)
+        a = np.min(values)
+        b = np.max(values)
+        if a >= b:
+            QMessageBox.critical(gui, "Помилка", "Мінімальне значення має бути меншим за максимальне.")
+            return
+        
+        # Побудова гістограми
+        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
+        hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
+        
+        # Обчислення щільності уніформного розподілу
+        x = np.linspace(min(values), max(values), 100)
+        uniform_pdf = np.ones_like(x) / (b - a)  # Щільність = 1/(b-a) на інтервалі [a, b], 0 поза ним
+        # Обрізаємо щільність до інтервалу [a, b]
+        uniform_pdf[(x < a) | (x > b)] = 0
+        gui.distro_ax.plot(x, uniform_pdf, 'r-', label=f'Уніформний (a={a:.4f}, b={b:.4f})')
+        
+        # Налаштування графіка
+        gui.distro_ax.set_title('Гістограма та щільність уніформного розподілу')
+        gui.distro_ax.set_xlabel('Час очікування (хв)')
+        gui.distro_ax.set_ylabel('Щільність')
+        gui.distro_ax.legend()
+        
+        # Тест Колмогорова-Смірнова (підтримка для уніформного розподілу)
+        from scipy.stats import uniform
+        ks_statistic, ks_pvalue = kstest(values, 'uniform', args=(a, b - a))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        conclusion = "Розподіл відповідає уніформному" if ks_statistic < critical_value else "Розподіл не відповідає уніформному"
+        
+        # Формування тексту для виведення
+        ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
+                  f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                  f"Висновок: {conclusion}\n")
         
         gui.distro_info_label.setText(ks_text)
     

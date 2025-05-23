@@ -122,7 +122,7 @@ class MainWindow(QMainWindow):
         distro_layout = QHBoxLayout()
         distro_label = QLabel("Тип розподілу:")
         self.distro_combo = QComboBox()
-        self.distro_combo.addItems(["Нормальний", "Нормальний (гістограма)", "Експоненціальний", "Експоненціальний (гістограма)", "Вейбулла"])
+        self.distro_combo.addItems(["Нормальний", "Нормальний (гістограма)", "Експоненціальний", "Експоненціальний (гістограма)", "Вейбулла", "Уніформний (гістограма)"])
         distro_layout.addWidget(distro_label)
         distro_layout.addWidget(self.distro_combo)
         tab1_layout.addLayout(distro_layout)
