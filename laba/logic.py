@@ -1,15 +1,108 @@
 import numpy as np
 import pandas as pd
-from scipy.stats import skew, kurtosis, variation, median_abs_deviation, norm, t, chi2, sem, kstest, expon
+from scipy.stats import skew, kurtosis, variation, median_abs_deviation, norm, t, chi2, sem, kstest, expon, weibull_min
 from PyQt5.QtWidgets import (QFileDialog, QMessageBox, QInputDialog, QDialog, QListWidget,
-                             QPushButton, QVBoxLayout, QTableWidgetItem, QLabel)  # Додано QLabel
+                             QPushButton, QVBoxLayout, QTableWidgetItem, QLabel)
 import matplotlib.pyplot as plt
-
+from scipy.stats import skew, kurtosis, variation, median_abs_deviation, norm, t, chi2, sem, kstest, expon, weibull_min
 # Глобальні змінні
 values = np.array([])
 original_values = np.array([])
 gui = None
 
+def generate_weibull_sample(size, lambda_param, k_param):
+    """Генерація вибірки з розподілу Вейбулла."""
+    U = np.random.uniform(0, 1, size)
+    return lambda_param * (-np.log(U)) ** (1 / k_param)
+
+def simulate_and_test_weibull(size, lambda_true, k_true, num_experiments=200):
+    """Моделювання та тестування вибірки Вейбулла з T-тестом."""
+    from scipy.stats import ttest_1samp
+    
+    lambda_estimates = []
+    k_estimates = []
+    
+    for _ in range(num_experiments):
+        sample = generate_weibull_sample(size, lambda_true, k_true)
+        k_est, loc, lambda_est = weibull_min.fit(sample, floc=0)
+        lambda_estimates.append(lambda_est)
+        k_estimates.append(k_est)
+    
+    t_stat_lambda, p_value_lambda = ttest_1samp(lambda_estimates, lambda_true)
+    t_stat_k, p_value_k = ttest_1samp(k_estimates, k_true)
+    
+    return {
+        'lambda_mean': np.mean(lambda_estimates),
+        'lambda_std': np.std(lambda_estimates),
+        'lambda_t_stat': t_stat_lambda,
+        'lambda_p_value': p_value_lambda,
+        'k_mean': np.mean(k_estimates),
+        'k_std': np.std(k_estimates),
+        'k_t_stat': t_stat_k,
+        'k_p_value': p_value_k
+    }
+# Глобальні змінні
+values = np.array([])
+original_values = np.array([])
+gui = None
+
+# Додаємо нові функції
+def generate_weibull_sample(size, lambda_param, k_param):
+    """Генерація вибірки з розподілу Вейбулла."""
+    U = np.random.uniform(0, 1, size)
+    return lambda_param * (-np.log(U)) ** (1 / k_param)
+
+def simulate_and_test_weibull(size, lambda_true, k_true, num_experiments=200):
+    """Моделювання та тестування вибірки Вейбулла з T-тестом."""
+    from scipy.stats import ttest_1samp
+    
+    lambda_estimates = []
+    k_estimates = []
+    
+    for _ in range(num_experiments):
+        sample = generate_weibull_sample(size, lambda_true, k_true)
+        k_est, loc, lambda_est = weibull_min.fit(sample, floc=0)
+        lambda_estimates.append(lambda_est)
+        k_estimates.append(k_est)
+    
+    t_stat_lambda, p_value_lambda = ttest_1samp(lambda_estimates, lambda_true)
+    t_stat_k, p_value_k = ttest_1samp(k_estimates, k_true)
+    
+    return {
+        'lambda_mean': np.mean(lambda_estimates),
+        'lambda_std': np.std(lambda_estimates),
+        'lambda_t_stat': t_stat_lambda,
+        'lambda_p_value': p_value_lambda,
+        'k_mean': np.mean(k_estimates),
+        'k_std': np.std(k_estimates),
+        'k_t_stat': t_stat_k,
+        'k_p_value': p_value_k
+    }
+
+def generate_weibull_data():
+    """Генерація синтетичних даних із розподілу Вейбулла."""
+    global values, original_values
+    lambda_param, ok1 = QInputDialog.getDouble(gui, "Параметр Вейбулла", "Введіть параметр масштабу (λ):", 2.0, 0.1, 100.0, 2)
+    if not ok1:
+        return
+    k_param, ok2 = QInputDialog.getDouble(gui, "Параметр Вейбулла", "Введіть параметр форми (k):", 1.5, 0.1, 10.0, 2)
+    if not ok2:
+        return
+    size, ok3 = QInputDialog.getInt(gui, "Розмір вибірки", "Введіть розмір вибірки:", 1000, 1, 10000)
+    if not ok3:
+        return
+    values = generate_weibull_sample(size, lambda_param, k_param)
+    original_values = values.copy()
+    update_statistics()
+    update_characteristics()
+    update_data_box()
+    for btn in gui.editing_buttons:
+        btn.setEnabled(True)
+    gui.plot_distro_btn.setEnabled(True)
+    min_val, max_val = np.min(values), np.max(values)
+    gui.lower_entry.setText(str(min_val))
+    gui.upper_entry.setText(str(max_val))
+    QMessageBox.information(gui, "Генерація", f"Згенеровано вибірку з розподілу Вейбулла (λ={lambda_param}, k={k_param})")
 def save_data():
     global values
     file_path, _ = QFileDialog.getSaveFileName(gui, "Зберегти дані", "", "Text files (*.txt)")
@@ -191,13 +284,23 @@ def load_data():
         values = np.array([])
         original_values = np.array([])
 
+def calculate_bin_count(N):
+    """Визначає кількість класів для гістограми."""
+    if N <= 100:
+        bin_count = int(np.sqrt(N))
+    else:
+        bin_count = int(np.cbrt(N))
+    if bin_count % 2 == 0:
+        bin_count -= 1
+    return max(1, bin_count)
+
 def update_histogram():
     global values
     if len(values) == 0:
         return
     bin_count = gui.bin_entry.value()
     if bin_count == 0:
-        bin_count = calculate_bin_count(len(values))  # Використовуємо нову функцію
+        bin_count = calculate_bin_count(len(values))
     
     gui.hist_ax.clear()
     
@@ -223,21 +326,7 @@ def update_histogram():
     range_val = np.ptp(values)
     bin_width = range_val / bin_count if bin_count > 0 else 0
     gui.info_label.setText(f'Кількість класів: {bin_count}\nКрок розбиття: {bin_width:.3f}\nРозмах: {range_val:.3f}\nКількість даних: {len(values)}')
-def calculate_bin_count(N):
-    """
-    Визначає кількість класів для гістограми на основі кількості даних N.
-    - Якщо N <= 100, кількість класів = sqrt(N), якщо парне, то -1.
-    - Якщо N > 100, кількість класів = cbrt(N), якщо парне, то -1.
-    """
-    if N <= 100:
-        bin_count = int(np.sqrt(N))
-    else:
-        bin_count = int(np.cbrt(N))  # Кубічний корінь
-    # Якщо кількість класів парна, зменшуємо на 1
-    if bin_count % 2 == 0:
-        bin_count -= 1
-    # Забезпечуємо, що кількість класів не менша за 1
-    return max(1, bin_count)
+
 def plot_distribution():
     global values
     if len(values) == 0:
@@ -252,7 +341,7 @@ def plot_distribution():
     
     n_bins = gui.bin_entry.value()
     if n_bins == 0:
-        n_bins = int(np.sqrt(len(values)))
+        n_bins = calculate_bin_count(len(values))
     
     if distro_type == "Нормальний":
         bin_dt, bin_gr = np.histogram(values, bins=n_bins)
@@ -286,7 +375,8 @@ def plot_distribution():
         ks_statistic, ks_pvalue = kstest(values, 'norm', args=(mean, std))
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл нормальний" if ks_statistic < critical_value else "Розподіл не нормальний"
-    else:  # Експоненціальний
+    
+    elif distro_type == "Експоненціальний":
         if np.any(values < 0):
             QMessageBox.critical(gui, "Помилка", "Експоненціальний розподіл можливий лише для невід’ємних значень")
             return
@@ -296,12 +386,11 @@ def plot_distribution():
         empirical_probs = np.arange(1, n + 1) / (n + 1)
         y_values = -np.log(1 - empirical_probs)
         
-        # Нормалізуємо y_values, щоб максимум був 1
         y_max = np.max(y_values)
-        if y_max > 0:  # Уникаємо ділення на 0
+        if y_max > 0:
             y_values_normalized = y_values / y_max
         else:
-            y_values_normalized = y_values  # Якщо y_max == 0, залишаємо без змін
+            y_values_normalized = y_values
         
         mean = np.mean(values)
         if mean == 0:
@@ -309,26 +398,23 @@ def plot_distribution():
             return
         lambda_param = 1 / mean
         
-        # Відображаємо нормалізовані емпіричні дані
         gui.distro_ax.scatter(sorted_values, y_values_normalized, color='green', label='Дані', s=50)
         
-        # Теоретична пряма, також нормалізована
         x_theor = np.linspace(0, np.max(sorted_values) * 1.2, 100)
         y_theor = lambda_param * x_theor
-        if y_max > 0:  # Нормалізуємо теоретичну пряму відповідно до емпіричних даних
+        if y_max > 0:
             y_theor_normalized = y_theor / y_max
         else:
             y_theor_normalized = y_theor
         gui.distro_ax.plot(x_theor, y_theor_normalized, color='blue', linestyle='--', label=f'Експоненціальний розподіл (λ={lambda_param:.4f})')
         
-        # Встановлення меж графіка
         x_min, x_max = np.min(values), np.max(values)
         x_range = x_max - x_min if x_max != x_min else 1
         x_margin = 0.1 * x_range
         x_lower = max(0, x_min - x_margin)
         x_upper = x_max + x_margin
         gui.distro_ax.set_xlim(x_lower, x_upper)
-        gui.distro_ax.set_ylim(0, 1.1)  # Обмежуємо Y до 1 з невеликим запасом
+        gui.distro_ax.set_ylim(0, 1.1)
         
         gui.distro_ax.set_title('Імовірнісна сітка експоненціального розподілу')
         gui.distro_ax.set_xlabel('Значення (Час очікування, хв)')
@@ -336,15 +422,70 @@ def plot_distribution():
         ks_statistic, ks_pvalue = kstest(values, 'expon', args=(0, mean))
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл відповідає експоненціальному" if ks_statistic < critical_value else "Розподіл не відповідає експоненціальному"
+    
+    elif distro_type == "Вейбулла":
+        if np.any(values < 0):
+            QMessageBox.critical(gui, "Помилка", "Розподіл Вейбулла можливий лише для невід’ємних значень")
+            return
         
+        # Оцінка параметрів Вейбулла
+        k_est, loc, lambda_est = weibull_min.fit(values, floc=0)
+        
+        # Очищаємо осі
+        gui.distro_ax.clear()
+        
+        # Побудова гістограми
+        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
+        hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
+        
+        # Обчислення щільності розподілу Вейбулла
+        x = np.linspace(min(values), max(values), 100)
+        weibull_pdf = (k_est / lambda_est) * (x / lambda_est) ** (k_est - 1) * np.exp(-(x / lambda_est) ** k_est)
+        gui.distro_ax.plot(x, weibull_pdf, 'r-', label=f'Вейбулла (λ={lambda_est:.4f}, k={k_est:.4f})')
+        
+        # Налаштування графіка
+        gui.distro_ax.set_title('Гістограма та щільність розподілу Вейбулла')
+        gui.distro_ax.set_xlabel('Час очікування (хв)')
+        gui.distro_ax.set_ylabel('Щільність')
         gui.distro_ax.legend()
-        gui.distro_ax.grid(True, linestyle='--', alpha=0.7)
-        gui.distro_canvas.draw()
         
+        # Тест Колмогорова-Смірнова
+        ks_statistic, ks_pvalue = kstest(values, 'weibull_min', args=(k_est, loc, lambda_est))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        conclusion = "Розподіл відповідає Вейбулла" if ks_statistic < critical_value else "Розподіл не відповідає Вейбулла"
+        
+        # Моделювання для різних обсягів вибірки
+        sizes = [20, 50, 100, 400, 1000, 2000, 5000]
+        t_test_results = []
+        for size in sizes:
+            result = simulate_and_test_weibull(size, lambda_est, k_est)
+            t_test_results.append({
+                'size': size,
+                'lambda_mean': result['lambda_mean'],
+                'lambda_std': result['lambda_std'],
+                'lambda_t_stat': result['lambda_t_stat'],
+                'lambda_p_value': result['lambda_p_value'],
+                'k_mean': result['k_mean'],
+                'k_std': result['k_std'],
+                'k_t_stat': result['k_t_stat'],
+                'k_p_value': result['k_p_value']
+            })
+        
+        # Формування тексту для виведення
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
                 f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
-                f"Висновок: {conclusion}")
+                f"Висновок: {conclusion}\n\n"
+                f"T-тест для оцінки параметрів Вейбулла:\n")
+        for res in t_test_results:
+            ks_text += (f"\nРозмір вибірки: {res['size']}\n"
+                    f"λ: середнє={res['lambda_mean']:.4f}, std={res['lambda_std']:.4f}, "
+                    f"T-статистика={res['lambda_t_stat']:.4f}, p-value={res['lambda_p_value']:.4f}\n"
+                    f"k: середнє={res['k_mean']:.4f}, std={res['k_std']:.4f}, "
+                    f"T-статистика={res['k_t_stat']:.4f}, p-value={res['k_p_value']:.4f}\n")
+        
         gui.distro_info_label.setText(ks_text)
+        
+        gui.distro_canvas.draw()
 def standardize_data():
     global values
     if len(values) == 0:

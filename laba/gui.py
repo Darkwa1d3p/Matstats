@@ -117,11 +117,12 @@ class MainWindow(QMainWindow):
         edit_layout.addWidget(self.reset_btn)
         tab1_layout.addWidget(edit_widget)
 
-        # Вибір розподілу та кнопка
+        
+       # Вибір розподілу та кнопка
         distro_layout = QHBoxLayout()
         distro_label = QLabel("Тип розподілу:")
         self.distro_combo = QComboBox()
-        self.distro_combo.addItems(["Нормальний", "Експоненціальний"])
+        self.distro_combo.addItems(["Нормальний", "Експоненціальний", "Вейбулла"])  # Додаємо "Вейбулла"
         distro_layout.addWidget(distro_label)
         distro_layout.addWidget(self.distro_combo)
         tab1_layout.addLayout(distro_layout)
@@ -129,7 +130,11 @@ class MainWindow(QMainWindow):
         self.plot_distro_btn.setEnabled(False)
         tab1_layout.addWidget(self.plot_distro_btn)
 
-        # Таблиця характеристик
+        # Додаємо кнопку для генерації синтетичних даних Вейбулла
+        self.generate_weibull_btn = QPushButton("Згенерувати вибірку Вейбулла")
+        tab1_layout.addWidget(self.generate_weibull_btn)
+
+            # Таблиця характеристик
         self.char_table = QTableWidget()
         self.char_table.setRowCount(10)
         self.char_table.setColumnCount(3)
