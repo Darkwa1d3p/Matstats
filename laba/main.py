@@ -8,4 +8,4 @@ if __name__ == "__main__":
     window = MainWindow()
     initialize_logic(window)
     window.showMaximized()
-    sys.exit(app.exec_())пше
+    sys.exit(app.exec_())

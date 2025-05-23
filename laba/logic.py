@@ -376,6 +376,38 @@ def plot_distribution():
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл нормальний" if ks_statistic < critical_value else "Розподіл не нормальний"
     
+    elif distro_type == "Нормальний (гістограма)":
+        # Оцінка параметрів нормального розподілу
+        mean = np.mean(values)
+        std = np.std(values)
+        
+        # Побудова гістограми
+        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
+        hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
+        
+        # Обчислення щільності нормального розподілу
+        x = np.linspace(min(values), max(values), 100)
+        normal_pdf = (1 / (std * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - mean) / std) ** 2)
+        gui.distro_ax.plot(x, normal_pdf, 'r-', label=f'Нормальний (μ={mean:.4f}, σ={std:.4f})')
+        
+        # Налаштування графіка
+        gui.distro_ax.set_title('Гістограма та щільність нормального розподілу')
+        gui.distro_ax.set_xlabel('Час очікування (хв)')
+        gui.distro_ax.set_ylabel('Щільність')
+        gui.distro_ax.legend()
+        
+        # Тест Колмогорова-Смірнова
+        ks_statistic, ks_pvalue = kstest(values, 'norm', args=(mean, std))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        conclusion = "Розподіл відповідає нормальному" if ks_statistic < critical_value else "Розподіл не відповідає нормальному"
+        
+        # Формування тексту для виведення
+        ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
+                  f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                  f"Висновок: {conclusion}\n")
+        
+        gui.distro_info_label.setText(ks_text)
+    
     elif distro_type == "Експоненціальний":
         if np.any(values < 0):
             QMessageBox.critical(gui, "Помилка", "Експоненціальний розподіл можливий лише для невід’ємних значень")
