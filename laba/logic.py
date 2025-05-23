@@ -423,6 +423,45 @@ def plot_distribution():
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл відповідає експоненціальному" if ks_statistic < critical_value else "Розподіл не відповідає експоненціальному"
     
+    elif distro_type == "Експоненціальний (гістограма)":
+        if np.any(values < 0):
+            QMessageBox.critical(gui, "Помилка", "Експоненціальний розподіл можливий лише для невід’ємних значень")
+            return
+        
+        # Оцінка параметра λ для експоненціального розподілу (λ = 1/середнє)
+        mean = np.mean(values)
+        if mean == 0:
+            QMessageBox.critical(gui, "Помилка", "Середнє значення дорівнює нулю. Неможливо оцінити параметр.")
+            return
+        lambda_param = 1 / mean
+        
+        # Побудова гістограми
+        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
+        hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
+        
+        # Обчислення щільності експоненціального розподілу
+        x = np.linspace(min(values), max(values), 100)
+        expon_pdf = lambda_param * np.exp(-lambda_param * x)
+        gui.distro_ax.plot(x, expon_pdf, 'r-', label=f'Експоненціальний (λ={lambda_param:.4f})')
+        
+        # Налаштування графіка
+        gui.distro_ax.set_title('Гістограма та щільність експоненціального розподілу')
+        gui.distro_ax.set_xlabel('Час очікування (хв)')
+        gui.distro_ax.set_ylabel('Щільність')
+        gui.distro_ax.legend()
+        
+        # Тест Колмогорова-Смірнова
+        ks_statistic, ks_pvalue = kstest(values, 'expon', args=(0, mean))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        conclusion = "Розподіл відповідає експоненціальному" if ks_statistic < critical_value else "Розподіл не відповідає експоненціальному"
+        
+        # Формування тексту для виведення
+        ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
+                  f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                  f"Висновок: {conclusion}\n")
+        
+        gui.distro_info_label.setText(ks_text)
+    
     elif distro_type == "Вейбулла":
         if np.any(values < 0):
             QMessageBox.critical(gui, "Помилка", "Розподіл Вейбулла можливий лише для невід’ємних значень")
@@ -473,19 +512,21 @@ def plot_distribution():
         
         # Формування тексту для виведення
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
-                f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
-                f"Висновок: {conclusion}\n\n"
-                f"T-тест для оцінки параметрів Вейбулла:\n")
+                  f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                  f"Висновок: {conclusion}\n\n"
+                  f"T-тест для оцінки параметрів Вейбулла:\n")
         for res in t_test_results:
             ks_text += (f"\nРозмір вибірки: {res['size']}\n"
-                    f"λ: середнє={res['lambda_mean']:.4f}, std={res['lambda_std']:.4f}, "
-                    f"T-статистика={res['lambda_t_stat']:.4f}, p-value={res['lambda_p_value']:.4f}\n"
-                    f"k: середнє={res['k_mean']:.4f}, std={res['k_std']:.4f}, "
-                    f"T-статистика={res['k_t_stat']:.4f}, p-value={res['k_p_value']:.4f}\n")
+                       f"λ: середнє={res['lambda_mean']:.4f}, std={res['lambda_std']:.4f}, "
+                       f"T-статистика={res['lambda_t_stat']:.4f}, p-value={res['lambda_p_value']:.4f}\n"
+                       f"k: середнє={res['k_mean']:.4f}, std={res['k_std']:.4f}, "
+                       f"T-статистика={res['k_t_stat']:.4f}, p-value={res['k_p_value']:.4f}\n")
         
         gui.distro_info_label.setText(ks_text)
-        
-        gui.distro_canvas.draw()
+    
+    gui.distro_ax.legend()
+    gui.distro_ax.grid(True, linestyle='--', alpha=0.7)
+    gui.distro_canvas.draw()
 def standardize_data():
     global values
     if len(values) == 0:
