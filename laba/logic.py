@@ -197,7 +197,7 @@ def update_histogram():
         return
     bin_count = gui.bin_entry.value()
     if bin_count == 0:
-        bin_count = int(np.sqrt(len(values)))
+        bin_count = calculate_bin_count(len(values))  # Використовуємо нову функцію
     
     gui.hist_ax.clear()
     
@@ -221,9 +221,23 @@ def update_histogram():
     gui.hist_canvas.draw()
     
     range_val = np.ptp(values)
-    bin_width = range_val / bin_count
+    bin_width = range_val / bin_count if bin_count > 0 else 0
     gui.info_label.setText(f'Кількість класів: {bin_count}\nКрок розбиття: {bin_width:.3f}\nРозмах: {range_val:.3f}\nКількість даних: {len(values)}')
-
+def calculate_bin_count(N):
+    """
+    Визначає кількість класів для гістограми на основі кількості даних N.
+    - Якщо N <= 100, кількість класів = sqrt(N), якщо парне, то -1.
+    - Якщо N > 100, кількість класів = cbrt(N), якщо парне, то -1.
+    """
+    if N <= 100:
+        bin_count = int(np.sqrt(N))
+    else:
+        bin_count = int(np.cbrt(N))  # Кубічний корінь
+    # Якщо кількість класів парна, зменшуємо на 1
+    if bin_count % 2 == 0:
+        bin_count -= 1
+    # Забезпечуємо, що кількість класів не менша за 1
+    return max(1, bin_count)
 def plot_distribution():
     global values
     if len(values) == 0:
