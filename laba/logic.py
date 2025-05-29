@@ -570,27 +570,61 @@ def plot_distribution():
         
         # Обчислення щільності уніформного розподілу
         x = np.linspace(min(values), max(values), 100)
-        uniform_pdf = np.ones_like(x) / (b - a)  # Щільність = 1/(b-a) на інтервалі [a, b], 0 поза ним
-        # Обрізаємо щільність до інтервалу [a, b]
+        uniform_pdf = np.ones_like(x) / (b - a)
         uniform_pdf[(x < a) | (x > b)] = 0
         gui.distro_ax.plot(x, uniform_pdf, 'r-', label=f'Уніформний (a={a:.4f}, b={b:.4f})')
         
-        # Налаштування графіка
         gui.distro_ax.set_title('Гістограма та щільність уніформного розподілу')
         gui.distro_ax.set_xlabel('Час очікування (хв)')
         gui.distro_ax.set_ylabel('Щільність')
         gui.distro_ax.legend()
         
-        # Тест Колмогорова-Смірнова (підтримка для уніформного розподілу)
         from scipy.stats import uniform
         ks_statistic, ks_pvalue = kstest(values, 'uniform', args=(a, b - a))
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл відповідає уніформному" if ks_statistic < critical_value else "Розподіл не відповідає уніформному"
         
+        ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
+                   f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                   f"Висновок: {conclusion}\n")
+        
+        gui.distro_info_label.setText(ks_text)
+    
+    elif distro_type == "Лог-нормальний (гістограма)":
+        if np.any(values <= 0):
+            QMessageBox.critical(gui, "Помилка", "Лог-нормальний розподіл можливий лише для додатних значень")
+            return
+        
+        # Оцінка параметрів лог-нормального розподілу
+        from scipy.stats import lognorm
+        log_values = np.log(values)
+        mu = np.mean(log_values)  # середнє логарифмованих даних
+        sigma = np.std(log_values)  # стандартне відхилення логарифмованих даних
+        
+        # Оцінка кількості бінів для гістограми
+        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
+        hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True)
+        
+        # Обчислення щільності лог-нормального розподілу
+        x = np.linspace(min(values), max(values), 100)
+        lognorm_pdf = lognorm.pdf(x, sigma, scale=np.exp(mu))
+        gui.distro_ax.plot(x, lognorm_pdf, 'r-', label=f'Лог-нормальний (μ={mu:.4f}, σ={sigma:.4f})')
+        
+        # Налаштування графіка
+        gui.distro_ax.set_title('Гістограма та щільність лог-нормального розподілу')
+        gui.distro_ax.set_xlabel('Час очікування (хв)')
+        gui.distro_ax.set_ylabel('Щільність')
+        gui.distro_ax.legend()
+        
+        # Тест Колмогорова-Смірнова
+        ks_statistic, ks_pvalue = kstest(values, 'lognorm', args=(sigma, 0, np.exp(mu)))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        conclusion = "Розподіл відповідає лог-нормальному" if ks_statistic < critical_value else "Розподіл не відповідає лог-нормальному"
+        
         # Формування тексту для виведення
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
-                  f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
-                  f"Висновок: {conclusion}\n")
+                   f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                   f"Висновок: {conclusion}\n")
         
         gui.distro_info_label.setText(ks_text)
     
