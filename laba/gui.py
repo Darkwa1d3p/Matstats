@@ -117,8 +117,7 @@ class MainWindow(QMainWindow):
         edit_layout.addWidget(self.reset_btn)
         tab1_layout.addWidget(edit_widget)
 
-        
-       # Вибір розподілу та кнопка
+        # Вибір розподілу та кнопка
         distro_layout = QHBoxLayout()
         distro_label = QLabel("Тип розподілу:")
         self.distro_combo = QComboBox()
@@ -130,11 +129,23 @@ class MainWindow(QMainWindow):
         self.plot_distro_btn.setEnabled(False)
         tab1_layout.addWidget(self.plot_distro_btn)
 
-        # Додаємо кнопку для генерації синтетичних даних Вейбулла
+        # Кнопка для генерації синтетичних даних Вейбулла
         self.generate_weibull_btn = QPushButton("Згенерувати вибірку Вейбулла")
         tab1_layout.addWidget(self.generate_weibull_btn)
 
-            # Таблиця характеристик
+        # Вибір розподілу та кнопка для t-тесту
+        ttest_layout = QHBoxLayout()
+        ttest_label = QLabel("Тип розподілу для t-тесту:")
+        self.distro_combo_ttest = QComboBox()
+        self.distro_combo_ttest.addItems(["Нормальний", "Експоненціальний", "Вейбулла", "Уніформний", "Лог-нормальний"])
+        ttest_layout.addWidget(ttest_label)
+        ttest_layout.addWidget(self.distro_combo_ttest)
+        tab1_layout.addLayout(ttest_layout)
+        self.run_ttest_btn = QPushButton("Запустити t-тест")
+        self.run_ttest_btn.setEnabled(False)
+        tab1_layout.addWidget(self.run_ttest_btn)
+
+        # Таблиця характеристик
         self.char_table = QTableWidget()
         self.char_table.setRowCount(10)
         self.char_table.setColumnCount(3)
@@ -188,5 +199,6 @@ class MainWindow(QMainWindow):
         # Список кнопок редагування для активації після завантаження
         self.editing_buttons = [
             self.standardize_btn, self.log_btn, self.shift_btn,
-            self.outliers_btn, self.reset_btn, self.apply_bounds_btn, self.save_btn
+            self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
+            self.save_btn, self.run_ttest_btn
         ]

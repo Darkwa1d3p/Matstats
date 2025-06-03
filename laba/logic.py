@@ -1,10 +1,10 @@
 import numpy as np
 import pandas as pd
-from scipy.stats import skew, kurtosis, variation, median_abs_deviation, norm, t, chi2, sem, kstest, expon, weibull_min
+from scipy.stats import skew, kurtosis, variation, median_abs_deviation, norm, t, chi2, sem, kstest, expon, weibull_min, uniform, lognorm, ttest_1samp
 from PyQt5.QtWidgets import (QFileDialog, QMessageBox, QInputDialog, QDialog, QListWidget,
                              QPushButton, QVBoxLayout, QTableWidgetItem, QLabel)
 import matplotlib.pyplot as plt
-from scipy.stats import skew, kurtosis, variation, median_abs_deviation, norm, t, chi2, sem, kstest, expon, weibull_min
+
 # Глобальні змінні
 values = np.array([])
 original_values = np.array([])
@@ -17,8 +17,6 @@ def generate_weibull_sample(size, lambda_param, k_param):
 
 def simulate_and_test_weibull(size, lambda_true, k_true, num_experiments=200):
     """Моделювання та тестування вибірки Вейбулла з T-тестом."""
-    from scipy.stats import ttest_1samp
-    
     lambda_estimates = []
     k_estimates = []
     
@@ -41,42 +39,118 @@ def simulate_and_test_weibull(size, lambda_true, k_true, num_experiments=200):
         'k_t_stat': t_stat_k,
         'k_p_value': p_value_k
     }
-# Глобальні змінні
-values = np.array([])
-original_values = np.array([])
-gui = None
 
-# Додаємо нові функції
-def generate_weibull_sample(size, lambda_param, k_param):
-    """Генерація вибірки з розподілу Вейбулла."""
-    U = np.random.uniform(0, 1, size)
-    return lambda_param * (-np.log(U)) ** (1 / k_param)
+def generate_normal_sample(size, mu, sigma):
+    """Генерація вибірки з нормального розподілу."""
+    return np.random.normal(mu, sigma, size)
 
-def simulate_and_test_weibull(size, lambda_true, k_true, num_experiments=200):
-    """Моделювання та тестування вибірки Вейбулла з T-тестом."""
-    from scipy.stats import ttest_1samp
-    
-    lambda_estimates = []
-    k_estimates = []
+def simulate_and_test_normal(size, mu_true, sigma_true, num_experiments=200):
+    """Моделювання та тестування вибірки нормального розподілу з T-тестом."""
+    mu_estimates = []
+    sigma_estimates = []
     
     for _ in range(num_experiments):
-        sample = generate_weibull_sample(size, lambda_true, k_true)
-        k_est, loc, lambda_est = weibull_min.fit(sample, floc=0)
+        sample = generate_normal_sample(size, mu_true, sigma_true)
+        mu_est = np.mean(sample)
+        sigma_est = np.std(sample, ddof=1)
+        mu_estimates.append(mu_est)
+        sigma_estimates.append(sigma_est)
+    
+    t_stat_mu, p_value_mu = ttest_1samp(mu_estimates, mu_true)
+    t_stat_sigma, p_value_sigma = ttest_1samp(sigma_estimates, sigma_true)
+    
+    return {
+        'mu_mean': np.mean(mu_estimates),
+        'mu_std': np.std(mu_estimates),
+        'mu_t_stat': t_stat_mu,
+        'mu_p_value': p_value_mu,
+        'sigma_mean': np.mean(sigma_estimates),
+        'sigma_std': np.std(sigma_estimates),
+        'sigma_t_stat': t_stat_sigma,
+        'sigma_p_value': p_value_sigma
+    }
+
+def generate_exponential_sample(size, lambda_param):
+    """Генерація вибірки з експоненціального розподілу."""
+    return np.random.exponential(1/lambda_param, size)
+
+def simulate_and_test_exponential(size, lambda_true, num_experiments=200):
+    """Моделювання та тестування вибірки експоненціального розподілу з T-тестом."""
+    lambda_estimates = []
+    
+    for _ in range(num_experiments):
+        sample = generate_exponential_sample(size, lambda_true)
+        lambda_est = 1 / np.mean(sample)
         lambda_estimates.append(lambda_est)
-        k_estimates.append(k_est)
     
     t_stat_lambda, p_value_lambda = ttest_1samp(lambda_estimates, lambda_true)
-    t_stat_k, p_value_k = ttest_1samp(k_estimates, k_true)
     
     return {
         'lambda_mean': np.mean(lambda_estimates),
         'lambda_std': np.std(lambda_estimates),
         'lambda_t_stat': t_stat_lambda,
-        'lambda_p_value': p_value_lambda,
-        'k_mean': np.mean(k_estimates),
-        'k_std': np.std(k_estimates),
-        'k_t_stat': t_stat_k,
-        'k_p_value': p_value_k
+        'lambda_p_value': p_value_lambda
+    }
+
+def generate_uniform_sample(size, a, b):
+    """Генерація вибірки з уніформного розподілу."""
+    return np.random.uniform(a, b, size)
+
+def simulate_and_test_uniform(size, a_true, b_true, num_experiments=200):
+    """Моделювання та тестування вибірки уніформного розподілу з T-тестом."""
+    a_estimates = []
+    b_estimates = []
+    
+    for _ in range(num_experiments):
+        sample = generate_uniform_sample(size, a_true, b_true)
+        a_est = np.min(sample)
+        b_est = np.max(sample)
+        a_estimates.append(a_est)
+        b_estimates.append(b_est)
+    
+    t_stat_a, p_value_a = ttest_1samp(a_estimates, a_true)
+    t_stat_b, p_value_b = ttest_1samp(b_estimates, b_true)
+    
+    return {
+        'a_mean': np.mean(a_estimates),
+        'a_std': np.std(a_estimates),
+        'a_t_stat': t_stat_a,
+        'a_p_value': p_value_a,
+        'b_mean': np.mean(b_estimates),
+        'b_std': np.std(b_estimates),
+        'b_t_stat': t_stat_b,
+        'b_p_value': p_value_b
+    }
+
+def generate_lognormal_sample(size, mu, sigma):
+    """Генерація вибірки з лог-нормального розподілу."""
+    return np.random.lognormal(mu, sigma, size)
+
+def simulate_and_test_lognormal(size, mu_true, sigma_true, num_experiments=200):
+    """Моделювання та тестування вибірки лог-нормального розподілу з T-тестом."""
+    mu_estimates = []
+    sigma_estimates = []
+    
+    for _ in range(num_experiments):
+        sample = generate_lognormal_sample(size, mu_true, sigma_true)
+        log_sample = np.log(sample)
+        mu_est = np.mean(log_sample)
+        sigma_est = np.std(log_sample, ddof=1)
+        mu_estimates.append(mu_est)
+        sigma_estimates.append(sigma_est)
+    
+    t_stat_mu, p_value_mu = ttest_1samp(mu_estimates, mu_true)
+    t_stat_sigma, p_value_sigma = ttest_1samp(sigma_estimates, sigma_true)
+    
+    return {
+        'mu_mean': np.mean(mu_estimates),
+        'mu_std': np.std(mu_estimates),
+        'mu_t_stat': t_stat_mu,
+        'mu_p_value': p_value_mu,
+        'sigma_mean': np.mean(sigma_estimates),
+        'sigma_std': np.std(sigma_estimates),
+        'sigma_t_stat': t_stat_sigma,
+        'sigma_p_value': p_value_sigma
     }
 
 def generate_weibull_data():
@@ -103,6 +177,7 @@ def generate_weibull_data():
     gui.lower_entry.setText(str(min_val))
     gui.upper_entry.setText(str(max_val))
     QMessageBox.information(gui, "Генерація", f"Згенеровано вибірку з розподілу Вейбулла (λ={lambda_param}, k={k_param})")
+
 def save_data():
     global values
     file_path, _ = QFileDialog.getSaveFileName(gui, "Зберегти дані", "", "Text files (*.txt)")
@@ -377,31 +452,25 @@ def plot_distribution():
         conclusion = "Розподіл нормальний" if ks_statistic < critical_value else "Розподіл не нормальний"
     
     elif distro_type == "Нормальний (гістограма)":
-        # Оцінка параметрів нормального розподілу
         mean = np.mean(values)
         std = np.std(values)
         
-        # Побудова гістограми
         n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
         hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
         
-        # Обчислення щільності нормального розподілу
         x = np.linspace(min(values), max(values), 100)
         normal_pdf = (1 / (std * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - mean) / std) ** 2)
         gui.distro_ax.plot(x, normal_pdf, 'r-', label=f'Нормальний (μ={mean:.4f}, σ={std:.4f})')
         
-        # Налаштування графіка
         gui.distro_ax.set_title('Гістограма та щільність нормального розподілу')
         gui.distro_ax.set_xlabel('Час очікування (хв)')
         gui.distro_ax.set_ylabel('Щільність')
         gui.distro_ax.legend()
         
-        # Тест Колмогорова-Sмірнова
         ks_statistic, ks_pvalue = kstest(values, 'norm', args=(mean, std))
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл відповідає нормальному" if ks_statistic < critical_value else "Розподіл не відповідає нормальному"
         
-        # Формування тексту для виведення
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
                   f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
                   f"Висновок: {conclusion}\n")
@@ -460,34 +529,28 @@ def plot_distribution():
             QMessageBox.critical(gui, "Помилка", "Експоненціальний розподіл можливий лише для невід’ємних значень")
             return
         
-        # Оцінка параметра λ для експоненціального розподілу (λ = 1/середнє)
         mean = np.mean(values)
         if mean == 0:
             QMessageBox.critical(gui, "Помилка", "Середнє значення дорівнює нулю. Неможливо оцінити параметр.")
             return
         lambda_param = 1 / mean
         
-        # Побудова гістограми
         n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
         hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
         
-        # Обчислення щільності експоненціального розподілу
         x = np.linspace(min(values), max(values), 100)
         expon_pdf = lambda_param * np.exp(-lambda_param * x)
         gui.distro_ax.plot(x, expon_pdf, 'r-', label=f'Експоненціальний (λ={lambda_param:.4f})')
         
-        # Налаштування графіка
         gui.distro_ax.set_title('Гістограма та щільність експоненціального розподілу')
         gui.distro_ax.set_xlabel('Час очікування (хв)')
         gui.distro_ax.set_ylabel('Щільність')
         gui.distro_ax.legend()
         
-        # Тест Колмогорова-Смірнова
         ks_statistic, ks_pvalue = kstest(values, 'expon', args=(0, mean))
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл відповідає експоненціальному" if ks_statistic < critical_value else "Розподіл не відповідає експоненціальному"
         
-        # Формування тексту для виведення
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
                   f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
                   f"Висновок: {conclusion}\n")
@@ -499,33 +562,26 @@ def plot_distribution():
             QMessageBox.critical(gui, "Помилка", "Розподіл Вейбулла можливий лише для невід’ємних значень")
             return
         
-        # Оцінка параметрів Вейбулла
         k_est, loc, lambda_est = weibull_min.fit(values, floc=0)
         
-        # Очищаємо осі
         gui.distro_ax.clear()
         
-        # Побудова гістограми
         n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
         hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
         
-        # Обчислення щільності розподілу Вейбулла
         x = np.linspace(min(values), max(values), 100)
         weibull_pdf = (k_est / lambda_est) * (x / lambda_est) ** (k_est - 1) * np.exp(-(x / lambda_est) ** k_est)
         gui.distro_ax.plot(x, weibull_pdf, 'r-', label=f'Вейбулла (λ={lambda_est:.4f}, k={k_est:.4f})')
         
-        # Налаштування графіка
         gui.distro_ax.set_title('Гістограма та щільність розподілу Вейбулла')
         gui.distro_ax.set_xlabel('Час очікування (хв)')
         gui.distro_ax.set_ylabel('Щільність')
         gui.distro_ax.legend()
         
-        # Тест Колмогорова-Смірнова
         ks_statistic, ks_pvalue = kstest(values, 'weibull_min', args=(k_est, loc, lambda_est))
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл відповідає Вейбулла" if ks_statistic < critical_value else "Розподіл не відповідає Вейбулла"
         
-        # Моделювання для різних обсягів вибірки
         sizes = [20, 50, 100, 400, 1000, 2000, 5000]
         t_test_results = []
         for size in sizes:
@@ -542,7 +598,6 @@ def plot_distribution():
                 'k_p_value': result['k_p_value']
             })
         
-        # Формування тексту для виведення
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
                   f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
                   f"Висновок: {conclusion}\n\n"
@@ -557,18 +612,15 @@ def plot_distribution():
         gui.distro_info_label.setText(ks_text)
     
     elif distro_type == "Уніформний (гістограма)":
-        # Оцінка параметрів уніформного розподілу (min і max значень)
         a = np.min(values)
         b = np.max(values)
         if a >= b:
             QMessageBox.critical(gui, "Помилка", "Мінімальне значення має бути меншим за максимальне.")
             return
         
-        # Побудова гістограми
         n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
         hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
         
-        # Обчислення щільності уніформного розподілу
         x = np.linspace(min(values), max(values), 100)
         uniform_pdf = np.ones_like(x) / (b - a)
         uniform_pdf[(x < a) | (x > b)] = 0
@@ -579,7 +631,6 @@ def plot_distribution():
         gui.distro_ax.set_ylabel('Щільність')
         gui.distro_ax.legend()
         
-        from scipy.stats import uniform
         ks_statistic, ks_pvalue = kstest(values, 'uniform', args=(a, b - a))
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл відповідає уніформному" if ks_statistic < critical_value else "Розподіл не відповідає уніформному"
@@ -595,33 +646,26 @@ def plot_distribution():
             QMessageBox.critical(gui, "Помилка", "Лог-нормальний розподіл можливий лише для додатних значень")
             return
         
-        # Оцінка параметрів лог-нормального розподілу
-        from scipy.stats import lognorm
         log_values = np.log(values)
-        mu = np.mean(log_values)  # середнє логарифмованих даних
-        sigma = np.std(log_values)  # стандартне відхилення логарифмованих даних
+        mu = np.mean(log_values)
+        sigma = np.std(log_values)
         
-        # Оцінка кількості бінів для гістограми
         n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
         hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True)
         
-        # Обчислення щільності лог-нормального розподілу
         x = np.linspace(min(values), max(values), 100)
         lognorm_pdf = lognorm.pdf(x, sigma, scale=np.exp(mu))
         gui.distro_ax.plot(x, lognorm_pdf, 'r-', label=f'Лог-нормальний (μ={mu:.4f}, σ={sigma:.4f})')
         
-        # Налаштування графіка
         gui.distro_ax.set_title('Гістограма та щільність лог-нормального розподілу')
         gui.distro_ax.set_xlabel('Час очікування (хв)')
         gui.distro_ax.set_ylabel('Щільність')
         gui.distro_ax.legend()
         
-        # Тест Колмогорова-Смірнова
         ks_statistic, ks_pvalue = kstest(values, 'lognorm', args=(sigma, 0, np.exp(mu)))
         critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
         conclusion = "Розподіл відповідає лог-нормальному" if ks_statistic < critical_value else "Розподіл не відповідає лог-нормальному"
         
-        # Формування тексту для виведення
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
                    f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
                    f"Висновок: {conclusion}\n")
@@ -631,6 +675,147 @@ def plot_distribution():
     gui.distro_ax.legend()
     gui.distro_ax.grid(True, linestyle='--', alpha=0.7)
     gui.distro_canvas.draw()
+
+def run_ttest():
+    """Запуск t-тесту для обраного розподілу з введенням параметрів."""
+    distro_type = gui.distro_combo_ttest.currentText()
+    t_test_results = []
+    sizes = [20, 50, 100, 400, 1000, 2000, 5000]
+    
+    if distro_type == "Нормальний":
+        mu_true, ok1 = QInputDialog.getDouble(gui, "Параметр нормального розподілу", "Введіть середнє (μ):", 0.0, -1000.0, 1000.0, 2)
+        if not ok1:
+            return
+        sigma_true, ok2 = QInputDialog.getDouble(gui, "Параметр нормального розподілу", "Введіть стандартне відхилення (σ):", 1.0, 0.1, 100.0, 2)
+        if not ok2:
+            return
+        for size in sizes:
+            result = simulate_and_test_normal(size, mu_true, sigma_true)
+            t_test_results.append({
+                'size': size,
+                'param1_mean': result['mu_mean'],
+                'param1_std': result['mu_std'],
+                'param1_t_stat': result['mu_t_stat'],
+                'param1_p_value': result['mu_p_value'],
+                'param2_mean': result['sigma_mean'],
+                'param2_std': result['sigma_std'],
+                'param2_t_stat': result['sigma_t_stat'],
+                'param2_p_value': result['sigma_p_value'],
+                'param1_name': 'μ',
+                'param2_name': 'σ'
+            })
+
+    elif distro_type == "Експоненціальний":
+        lambda_true, ok1 = QInputDialog.getDouble(gui, "Параметр експоненціального розподілу", "Введіть параметр (λ):", 1.0, 0.1, 100.0, 2)
+        if not ok1:
+            return
+        for size in sizes:
+            result = simulate_and_test_exponential(size, lambda_true)
+            t_test_results.append({
+                'size': size,
+                'param1_mean': result['lambda_mean'],
+                'param1_std': result['lambda_std'],
+                'param1_t_stat': result['lambda_t_stat'],
+                'param1_p_value': result['lambda_p_value'],
+                'param2_mean': None,
+                'param2_std': None,
+                'param2_t_stat': None,
+                'param2_p_value': None,
+                'param1_name': 'λ',
+                'param2_name': None
+            })
+
+    elif distro_type == "Вейбулла":
+        lambda_true, ok1 = QInputDialog.getDouble(gui, "Параметр Вейбулла", "Введіть параметр масштабу (λ):", 2.0, 0.1, 100.0, 2)
+        if not ok1:
+            return
+        k_true, ok2 = QInputDialog.getDouble(gui, "Параметр Вейбулла", "Введіть параметр форми (k):", 1.5, 0.1, 10.0, 2)
+        if not ok2:
+            return
+        for size in sizes:
+            result = simulate_and_test_weibull(size, lambda_true, k_true)
+            t_test_results.append({
+                'size': size,
+                'param1_mean': result['lambda_mean'],
+                'param1_std': result['lambda_std'],
+                'param1_t_stat': result['lambda_t_stat'],
+                'param1_p_value': result['lambda_p_value'],
+                'param2_mean': result['k_mean'],
+                'param2_std': result['k_std'],
+                'param2_t_stat': result['k_t_stat'],
+                'param2_p_value': result['k_p_value'],
+                'param1_name': 'λ',
+                'param2_name': 'k'
+            })
+
+    elif distro_type == "Уніформний":
+        a_true, ok1 = QInputDialog.getDouble(gui, "Параметр уніформного розподілу", "Введіть нижню межу (a):", 0.0, -1000.0, 1000.0, 2)
+        if not ok1:
+            return
+        b_true, ok2 = QInputDialog.getDouble(gui, "Параметр уніформного розподілу", "Введіть верхню межу (b):", 1.0, a_true + 0.1, 1000.0, 2)
+        if not ok2:
+            return
+        for size in sizes:
+            result = simulate_and_test_uniform(size, a_true, b_true)
+            t_test_results.append({
+                'size': size,
+                'param1_mean': result['a_mean'],
+                'param1_std': result['a_std'],
+                'param1_t_stat': result['a_t_stat'],
+                'param1_p_value': result['a_p_value'],
+                'param2_mean': result['b_mean'],
+                'param2_std': result['b_std'],
+                'param2_t_stat': result['b_t_stat'],
+                'param2_p_value': result['b_p_value'],
+                'param1_name': 'a',
+                'param2_name': 'b'
+            })
+
+    elif distro_type == "Лог-нормальний":
+        mu_true, ok1 = QInputDialog.getDouble(gui, "Параметр лог-нормального розподілу", "Введіть середнє (μ):", 0.0, -1000.0, 1000.0, 2)
+        if not ok1:
+            return
+        sigma_true, ok2 = QInputDialog.getDouble(gui, "Параметр лог-нормального розподілу", "Введіть стандартне відхилення (σ):", 1.0, 0.1, 100.0, 2)
+        if not ok2:
+            return
+        for size in sizes:
+            result = simulate_and_test_lognormal(size, mu_true, sigma_true)
+            t_test_results.append({
+                'size': size,
+                'param1_mean': result['mu_mean'],
+                'param1_std': result['mu_std'],
+                'param1_t_stat': result['mu_t_stat'],
+                'param1_p_value': result['mu_p_value'],
+                'param2_mean': result['sigma_mean'],
+                'param2_std': result['sigma_std'],
+                'param2_t_stat': result['sigma_t_stat'],
+                'param2_p_value': result['sigma_p_value'],
+                'param1_name': 'μ',
+                'param2_name': 'σ'
+            })
+
+    gui.char_table.clearContents()
+    gui.char_table.setRowCount(len(sizes) * (2 if t_test_results[0]['param2_name'] else 1))
+    gui.char_table.setColumnCount(6)
+    gui.char_table.setHorizontalHeaderLabels(["Розмір вибірки", "Середнє T", "СКВ T", "Критичне T", "α", "Параметр"])
+    
+    for row, res in enumerate(t_test_results):
+        gui.char_table.setItem(row * 2 if res['param2_name'] else row, 0, QTableWidgetItem(str(res['size'])))
+        gui.char_table.setItem(row * 2 if res['param2_name'] else row, 1, QTableWidgetItem(f"{res['param1_mean']:.4f} ({res['param1_name']})"))
+        gui.char_table.setItem(row * 2 if res['param2_name'] else row, 2, QTableWidgetItem(f"{res['param1_std']:.4f}"))
+        gui.char_table.setItem(row * 2 if res['param2_name'] else row, 3, QTableWidgetItem(f"{res['param1_t_stat']:.4f}"))
+        gui.char_table.setItem(row * 2 if res['param2_name'] else row, 4, QTableWidgetItem(f"{res['param1_p_value']:.4f}"))
+        gui.char_table.setItem(row * 2 if res['param2_name'] else row, 5, QTableWidgetItem(res['param1_name']))
+
+        if res['param2_name']:
+            gui.char_table.insertRow(row * 2 + 1)
+            gui.char_table.setItem(row * 2 + 1, 0, QTableWidgetItem(str(res['size'])))
+            gui.char_table.setItem(row * 2 + 1, 1, QTableWidgetItem(f"{res['param2_mean']:.4f} ({res['param2_name']})"))
+            gui.char_table.setItem(row * 2 + 1, 2, QTableWidgetItem(f"{res['param2_std']:.4f}"))
+            gui.char_table.setItem(row * 2 + 1, 3, QTableWidgetItem(f"{res['param2_t_stat']:.4f}"))
+            gui.char_table.setItem(row * 2 + 1, 4, QTableWidgetItem(f"{res['param2_p_value']:.4f}"))
+            gui.char_table.setItem(row * 2 + 1, 5, QTableWidgetItem(res['param2_name']))
+
 def standardize_data():
     global values
     if len(values) == 0:
@@ -792,3 +977,4 @@ def initialize_logic(window):
     gui.reset_btn.clicked.connect(reset_data)
     gui.plot_distro_btn.clicked.connect(plot_distribution)
     gui.save_btn.clicked.connect(save_data)
+    gui.run_ttest_btn.clicked.connect(run_ttest)
