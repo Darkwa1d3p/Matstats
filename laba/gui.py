@@ -112,6 +112,9 @@ class MainWindow(QMainWindow):
         self.outliers_btn = QPushButton("Вилучити аномальні дані")
         self.outliers_btn.setEnabled(False)
         edit_layout.addWidget(self.outliers_btn)
+        self.variation_series_btn = QPushButton("Показати варіаційний ряд")
+        self.variation_series_btn.setEnabled(False)
+        edit_layout.addWidget(self.variation_series_btn)
         self.reset_btn = QPushButton("Скинути дані")
         self.reset_btn.setEnabled(False)
         edit_layout.addWidget(self.reset_btn)
@@ -200,5 +203,5 @@ class MainWindow(QMainWindow):
         self.editing_buttons = [
             self.standardize_btn, self.log_btn, self.shift_btn,
             self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
-            self.save_btn, self.run_ttest_btn
+            self.save_btn, self.run_ttest_btn, self.variation_series_btn
         ]

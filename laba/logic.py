@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import skew, kurtosis, variation, median_abs_deviation, norm, t, chi2, sem, kstest, expon, weibull_min, uniform, lognorm, ttest_1samp
 from PyQt5.QtWidgets import (QFileDialog, QMessageBox, QInputDialog, QDialog, QListWidget,
-                             QPushButton, QVBoxLayout, QTableWidgetItem, QLabel)
+                             QPushButton, QVBoxLayout, QTableWidgetItem, QLabel, QTextEdit)
 import matplotlib.pyplot as plt
 
 # Глобальні змінні
@@ -14,7 +14,30 @@ def generate_weibull_sample(size, lambda_param, k_param):
     """Генерація вибірки з розподілу Вейбулла."""
     U = np.random.uniform(0, 1, size)
     return lambda_param * (-np.log(U)) ** (1 / k_param)
-
+def show_variation_series():
+    """Відображення варіаційного ряду (відсортованих даних)."""
+    global values
+    if len(values) == 0:
+        QMessageBox.warning(gui, "Попередження", "Немає даних для відображення варіаційного ряду")
+        return
+    
+    sorted_values = np.sort(values)
+    dialog = QDialog(gui)
+    dialog.setWindowTitle("Варіаційний ряд")
+    dialog.setFixedSize(400, 300)
+    layout = QVBoxLayout(dialog)
+    
+    layout.addWidget(QLabel("Відсортовані дані:"))
+    text_edit = QTextEdit()
+    text_edit.setReadOnly(True)
+    text_edit.setPlainText(', '.join([f"{val:.4f}" for val in sorted_values]))
+    layout.addWidget(text_edit)
+    
+    close_btn = QPushButton("Закрити")
+    close_btn.clicked.connect(dialog.accept)
+    layout.addWidget(close_btn)
+    
+    dialog.exec_()
 def simulate_and_test_weibull(size, lambda_true, k_true, num_experiments=200):
     """Моделювання та тестування вибірки Вейбулла з T-тестом."""
     lambda_estimates = []
@@ -978,3 +1001,4 @@ def initialize_logic(window):
     gui.plot_distro_btn.clicked.connect(plot_distribution)
     gui.save_btn.clicked.connect(save_data)
     gui.run_ttest_btn.clicked.connect(run_ttest)
+    gui.variation_series_btn.clicked.connect(show_variation_series)
