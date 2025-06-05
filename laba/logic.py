@@ -9,7 +9,32 @@ import matplotlib.pyplot as plt
 values = np.array([])
 original_values = np.array([])
 gui = None
-
+def test_h0_mean():
+    """Перевірка гіпотези H0: μ=значення за допомогою одновибіркового t-тесту."""
+    global values
+    if len(values) == 0:
+        QMessageBox.warning(gui, "Попередження", "Немає даних для перевірки гіпотези")
+        return
+    mu_0, ok = QInputDialog.getDouble(gui, "Гіпотеза про середнє", "Введіть значення гіпотези H0 (μ):", 0.0, -1000.0, 1000.0, 2)
+    if not ok:
+        return
+    t_stat, p_value = ttest_1samp(values, mu_0)
+    confidence = gui.confidence_entry.value() / 100
+    alpha = 1 - confidence
+    conclusion = ("H0 відхиляється: середнє значимо відрізняється від введеного значення" 
+                  if p_value < alpha 
+                  else "H0 не відхиляється: немає підстав вважати, що середнє відрізняється від введеного значення")
+    mean = np.mean(values)
+    QMessageBox.information(
+        gui, 
+        f"T-тест для H0: μ={mu_0}",
+        f"Середнє вибірки: {mean:.4f}\n"
+        f"Гіпотетичне середнє (μ0): {mu_0:.4f}\n"
+        f"T-статистика: {t_stat:.4f}\n"
+        f"p-значення: {p_value:.4f}\n"
+        f"Рівень значущості (α): {alpha:.4f}\n"
+        f"Висновок: {conclusion}"
+    )
 def generate_weibull_sample(size, lambda_param, k_param):
     """Генерація вибірки з розподілу Вейбулла."""
     U = np.random.uniform(0, 1, size)
@@ -39,7 +64,30 @@ def show_variation_series():
     layout.addWidget(close_btn)
     
     dialog.exec_()
-
+def simulate_and_test_weibull(size, lambda_true, k_true, num_experiments=200):
+    """Моделювання та тестування вибірки Вейбулла з T-тестом."""
+    lambda_estimates = []
+    k_estimates = []
+    
+    for _ in range(num_experiments):
+        sample = generate_weibull_sample(size, lambda_true, k_true)
+        k_est, loc, lambda_est = weibull_min.fit(sample, floc=0)
+        lambda_estimates.append(lambda_est)
+        k_estimates.append(k_est)
+    
+    t_stat_lambda, p_value_lambda = ttest_1samp(lambda_estimates, lambda_true)
+    t_stat_k, p_value_k = ttest_1samp(k_estimates, k_true)
+    
+    return {
+        'lambda_mean': np.mean(lambda_estimates),
+        'lambda_std': np.std(lambda_estimates),
+        'lambda_t_stat': t_stat_lambda,
+        'lambda_p_value': p_value_lambda,
+        'k_mean': np.mean(k_estimates),
+        'k_std': np.std(k_estimates),
+        'k_t_stat': t_stat_k,
+        'k_p_value': p_value_k
+    }
 def generate_normal_data():
     """Генерація синтетичних даних із нормального розподілу з розміром від 50 до 1000."""
     global values, original_values  # Оголосити глобальні змінні на початку
@@ -1033,3 +1081,4 @@ def initialize_logic(window):
     gui.run_ttest_btn.clicked.connect(run_ttest)
     gui.variation_series_btn.clicked.connect(show_variation_series)
     gui.generate_normal_btn.clicked.connect(generate_normal_data)
+    gui.test_h0_btn.clicked.connect(test_h0_mean)  

@@ -1,4 +1,3 @@
-
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLineEdit, QLabel, QTabWidget, QTableWidget, QTableWidgetItem,
                              QDoubleSpinBox, QSpinBox, QTextEdit, QComboBox)
@@ -156,6 +155,11 @@ class MainWindow(QMainWindow):
         self.run_ttest_btn.setEnabled(False)
         tab1_layout.addWidget(self.run_ttest_btn)
 
+        # Кнопка для перевірки гіпотези H0: μ=75
+        self.test_h0_btn = QPushButton("Перевірити H0: μ=значення")
+        self.test_h0_btn.setEnabled(False)
+        tab1_layout.addWidget(self.test_h0_btn)
+
         # Таблиця характеристик
         self.char_table = QTableWidget()
         self.char_table.setRowCount(10)
@@ -209,7 +213,8 @@ class MainWindow(QMainWindow):
 
         # Список кнопок редагування для активації після завантаження даних
         self.editing_buttons = [
-    self.standardize_btn, self.log_btn, self.shift_btn,
-    self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
-    self.save_btn, self.run_ttest_btn, self.variation_series_btn
-]
+            self.standardize_btn, self.log_btn, self.shift_btn,
+            self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
+            self.save_btn, self.run_ttest_btn, self.variation_series_btn,
+            self.test_h0_btn
+        ]
