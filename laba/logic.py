@@ -9,6 +9,26 @@ import matplotlib.pyplot as plt
 values = np.array([])
 original_values = np.array([])
 gui = None
+def plot_frequency_polygon():
+    global values
+    if len(values) == 0:
+        QMessageBox.warning(gui, "Попередження", "Немає даних для побудови полігону частот")
+        return
+    
+    gui.distro_ax.clear()
+    gui.distro_info_label.setText("")
+    
+    bin_count = gui.bin_entry.value() or calculate_bin_count(len(values))
+    hist, bins = np.histogram(values, bins=bin_count, density=False)
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+    
+    gui.distro_ax.plot(bin_centers, hist, 'b-', marker='o', label='Полігон частот')
+    gui.distro_ax.set_title('Полігон частот')
+    gui.distro_ax.set_xlabel('Час очікування (хв)')
+    gui.distro_ax.set_ylabel('Частота')
+    gui.distro_ax.legend()
+    gui.distro_ax.grid(True, linestyle='--', alpha=0.7)
+    gui.distro_canvas.draw()
 def test_h0_mean():
     """Перевірка гіпотези H0: μ=значення за допомогою одновибіркового t-тесту."""
     global values
@@ -1089,4 +1109,5 @@ def initialize_logic(window):
     gui.run_ttest_btn.clicked.connect(run_ttest)
     gui.variation_series_btn.clicked.connect(show_variation_series)
     gui.generate_normal_btn.clicked.connect(generate_normal_data)
-    gui.test_h0_btn.clicked.connect(test_h0_mean)  
+    gui.test_h0_btn.clicked.connect(test_h0_mean)
+    gui.plot_polygon_btn.clicked.connect(plot_frequency_polygon)

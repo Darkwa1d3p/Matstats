@@ -138,6 +138,9 @@ class MainWindow(QMainWindow):
         self.plot_distro_btn = QPushButton("Побудувати розподіл")
         self.plot_distro_btn.setEnabled(False)
         tab1_layout.addWidget(self.plot_distro_btn)
+        self.plot_polygon_btn = QPushButton("Побудувати полігон частот")
+        self.plot_polygon_btn.setEnabled(False)
+        tab1_layout.addWidget(self.plot_polygon_btn)
 
         # Кнопка для генерації синтетичних даних Вейбулла
         self.generate_weibull_btn = QPushButton("Згенерувати вибірку Вейбулла")
@@ -238,8 +241,8 @@ class MainWindow(QMainWindow):
 
         # Список кнопок редагування для активації після завантаження даних
         self.editing_buttons = [
-            self.standardize_btn, self.log_btn, self.shift_btn,
-            self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
-            self.save_btn, self.run_ttest_btn, self.variation_series_btn,
-            self.test_h0_btn
-        ]
+    self.standardize_btn, self.log_btn, self.shift_btn,
+    self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
+    self.save_btn, self.run_ttest_btn, self.variation_series_btn,
+    self.test_h0_btn, self.plot_polygon_btn
+]
