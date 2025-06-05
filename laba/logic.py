@@ -14,6 +14,7 @@ def generate_weibull_sample(size, lambda_param, k_param):
     """Генерація вибірки з розподілу Вейбулла."""
     U = np.random.uniform(0, 1, size)
     return lambda_param * (-np.log(U)) ** (1 / k_param)
+
 def show_variation_series():
     """Відображення варіаційного ряду (відсортованих даних)."""
     global values
@@ -38,6 +39,34 @@ def show_variation_series():
     layout.addWidget(close_btn)
     
     dialog.exec_()
+
+def generate_normal_data():
+    """Генерація синтетичних даних із нормального розподілу з розміром від 50 до 1000."""
+    global values, original_values  # Оголосити глобальні змінні на початку
+    mu, ok1 = QInputDialog.getDouble(gui, "Параметр нормального розподілу", "Введіть середнє (μ):", 0.0, -1000.0, 1000.0, 2)
+    if not ok1:
+        return
+    sigma, ok2 = QInputDialog.getDouble(gui, "Параметр нормального розподілу", "Введіть стандартне відхилення (σ):", 1.0, 0.1, 100.0, 2)
+    if not ok2:
+        return
+    size, ok3 = QInputDialog.getInt(gui, "Розмір вибірки", "Введіть розмір вибірки (50-1000):", 50, 50, 1000)
+    if not ok3:
+        return
+    values = np.random.normal(mu, sigma, size)
+    original_values = values.copy()
+    update_statistics()
+    update_characteristics()
+    update_data_box()
+    for btn in gui.editing_buttons:
+        btn.setEnabled(True)
+    gui.plot_distro_btn.setEnabled(True)
+    min_val, max_val = np.min(values), np.max(values)
+    gui.lower_entry.setText(str(min_val))
+    gui.upper_entry.setText(str(max_val))
+    QMessageBox.information(gui, "Генерація", f"Згенеровано вибірку з нормального розподілу (μ={mu}, σ={sigma}, розмір={size})")
+    
+
+
 def simulate_and_test_weibull(size, lambda_true, k_true, num_experiments=200):
     """Моделювання та тестування вибірки Вейбулла з T-тестом."""
     lambda_estimates = []
@@ -986,6 +1015,7 @@ def reset_data():
     gui.distro_canvas.draw()
     QMessageBox.information(gui, "Скидання", "Дані повернуто до початкового стану")
 
+
 def initialize_logic(window):
     global gui
     gui = window
@@ -1002,3 +1032,4 @@ def initialize_logic(window):
     gui.save_btn.clicked.connect(save_data)
     gui.run_ttest_btn.clicked.connect(run_ttest)
     gui.variation_series_btn.clicked.connect(show_variation_series)
+    gui.generate_normal_btn.clicked.connect(generate_normal_data)

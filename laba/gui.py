@@ -1,3 +1,4 @@
+
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLineEdit, QLabel, QTabWidget, QTableWidget, QTableWidgetItem,
                              QDoubleSpinBox, QSpinBox, QTextEdit, QComboBox)
@@ -12,17 +13,17 @@ class MainWindow(QMainWindow):
         self.init_ui()
 
     def init_ui(self):
-        # Основний віджет
+        # Основний віджет програми
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
 
-        # Лівий блок (керування)
+        # Лівий блок (елементи керування)
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         main_layout.addWidget(left_widget, 1)
 
-        # Вкладки
+        # Вкладки для організації елементів керування
         self.tabs = QTabWidget()
         left_layout.addWidget(self.tabs)
 
@@ -31,7 +32,7 @@ class MainWindow(QMainWindow):
         tab1_layout = QVBoxLayout(tab1)
         self.tabs.addTab(tab1, "Основний аналіз")
 
-        # Кнопка завантаження даних
+        # Кнопка для завантаження даних
         self.load_button = QPushButton("Завантажити дані")
         tab1_layout.addWidget(self.load_button)
 
@@ -45,16 +46,16 @@ class MainWindow(QMainWindow):
         bin_layout.addWidget(self.bin_entry)
         tab1_layout.addLayout(bin_layout)
 
-        # Кнопка оновлення гістограми
+        # Кнопка для оновлення гістограми
         self.update_button = QPushButton("Оновити гістограму")
         tab1_layout.addWidget(self.update_button)
 
-        # Інформація
+        # Інформація про гістограму
         self.info_label = QLabel("Кількість класів: -\nКрок розбиття: -\nРозмах: -\nКількість даних: -")
         self.info_label.setAlignment(Qt.AlignLeft)
         tab1_layout.addWidget(self.info_label)
 
-        # Рівень довіри
+        # Рівень довіри для статистичних обчислень
         confidence_layout = QHBoxLayout()
         confidence_label = QLabel("Рівень довіри (%):")
         self.confidence_entry = QDoubleSpinBox()
@@ -65,7 +66,7 @@ class MainWindow(QMainWindow):
         confidence_layout.addWidget(self.confidence_entry)
         tab1_layout.addLayout(confidence_layout)
 
-        # Точність
+        # Точність для відображення чисел
         precision_layout = QHBoxLayout()
         precision_label = QLabel("Точність (знаки після коми):")
         self.precision_entry = QSpinBox()
@@ -76,7 +77,7 @@ class MainWindow(QMainWindow):
         precision_layout.addWidget(self.precision_entry)
         tab1_layout.addLayout(precision_layout)
 
-        # Границі
+        # Встановлення границь для даних
         bounds_widget = QWidget()
         bounds_layout = QVBoxLayout(bounds_widget)
         bounds_layout.addWidget(QLabel("Встановлення границь"))
@@ -120,11 +121,13 @@ class MainWindow(QMainWindow):
         edit_layout.addWidget(self.reset_btn)
         tab1_layout.addWidget(edit_widget)
 
-        # Вибір розподілу та кнопка
+        # Вибір розподілу та кнопка для побудови
         distro_layout = QHBoxLayout()
         distro_label = QLabel("Тип розподілу:")
         self.distro_combo = QComboBox()
-        self.distro_combo.addItems(["Нормальний", "Нормальний (гістограма)", "Експоненціальний", "Експоненціальний (гістограма)", "Вейбулла", "Уніформний (гістограма)", "Лог-нормальний (гістограма)"])
+        self.distro_combo.addItems(["Нормальний", "Нормальний (гістограма)", "Експоненціальний",
+                                    "Експоненціальний (гістограма)", "Вейбулла",
+                                    "Уніформний (гістограма)", "Лог-нормальний (гістограма)"])
         distro_layout.addWidget(distro_label)
         distro_layout.addWidget(self.distro_combo)
         tab1_layout.addLayout(distro_layout)
@@ -136,11 +139,16 @@ class MainWindow(QMainWindow):
         self.generate_weibull_btn = QPushButton("Згенерувати вибірку Вейбулла")
         tab1_layout.addWidget(self.generate_weibull_btn)
 
+        # Кнопка для генерації синтетичних даних нормального розподілу
+        self.generate_normal_btn = QPushButton("Згенерувати вибірку нормального розподілу")
+        tab1_layout.addWidget(self.generate_normal_btn)
+
         # Вибір розподілу та кнопка для t-тесту
         ttest_layout = QHBoxLayout()
         ttest_label = QLabel("Тип розподілу для t-тесту:")
         self.distro_combo_ttest = QComboBox()
-        self.distro_combo_ttest.addItems(["Нормальний", "Експоненціальний", "Вейбулла", "Уніформний", "Лог-нормальний"])
+        self.distro_combo_ttest.addItems(["Нормальний", "Експоненціальний", "Вейбулла",
+                                          "Уніформний", "Лог-нормальний"])
         ttest_layout.addWidget(ttest_label)
         ttest_layout.addWidget(self.distro_combo_ttest)
         tab1_layout.addLayout(ttest_layout)
@@ -199,9 +207,9 @@ class MainWindow(QMainWindow):
         self.distro_info_label = QLabel("")
         distro_layout.addWidget(self.distro_info_label)
 
-        # Список кнопок редагування для активації після завантаження
+        # Список кнопок редагування для активації після завантаження даних
         self.editing_buttons = [
-            self.standardize_btn, self.log_btn, self.shift_btn,
-            self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
-            self.save_btn, self.run_ttest_btn, self.variation_series_btn
-        ]
+    self.standardize_btn, self.log_btn, self.shift_btn,
+    self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
+    self.save_btn, self.run_ttest_btn, self.variation_series_btn
+]
