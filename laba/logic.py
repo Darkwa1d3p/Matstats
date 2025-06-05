@@ -112,7 +112,7 @@ def generate_normal_data():
     gui.lower_entry.setText(str(min_val))
     gui.upper_entry.setText(str(max_val))
     QMessageBox.information(gui, "Генерація", f"Згенеровано вибірку з нормального розподілу (μ={mu}, σ={sigma}, розмір={size})")
-    
+    update_histogram()
 
 
 def simulate_and_test_weibull(size, lambda_true, k_true, num_experiments=200):
@@ -277,7 +277,7 @@ def generate_weibull_data():
     gui.lower_entry.setText(str(min_val))
     gui.upper_entry.setText(str(max_val))
     QMessageBox.information(gui, "Генерація", f"Згенеровано вибірку з розподілу Вейбулла (λ={lambda_param}, k={k_param})")
-
+    update_histogram()
 def save_data():
     global values
     file_path, _ = QFileDialog.getSaveFileName(gui, "Зберегти дані", "", "Text files (*.txt)")
@@ -335,6 +335,10 @@ def calculate_confidence_interval(data, statistic, confidence=0.95):
 def update_characteristics():
     global values
     if len(values) == 0:
+        gui.char_table.clearContents()
+        gui.char_table.setRowCount(10)
+        gui.char_table.setHorizontalHeaderLabels(["Характеристика", "Зсунена", "Незсунена"])
+        QMessageBox.warning(gui, "Попередження", "Немає даних для обчислення характеристик. Завантажте або згенеруйте дані.")
         return
     confidence = gui.confidence_entry.value() / 100
     precision = gui.precision_entry.value()
@@ -391,7 +395,7 @@ def update_statistics():
 
 def update_data_box():
     global values
-    gui.data_box.setPlainText(', '.join([f"{val:.4f}" for val in values]))
+    gui.data_box.setPlainText(', '.join([f"{val:.4f}" for val in values]) if len(values) > 0 else "")
     update_histogram()
 
 def load_data():
@@ -472,6 +476,10 @@ def calculate_bin_count(N):
 def update_histogram():
     global values
     if len(values) == 0:
+        QMessageBox.warning(gui, "Попередження", "Немає даних для побудови гістограми. Завантажте або згенеруйте дані.")
+        gui.hist_ax.clear()
+        gui.hist_canvas.draw()
+        gui.info_label.setText("Кількість класів: -\nКрок розбиття: -\nРозмах: -\nКількість даних: 0")
         return
     bin_count = gui.bin_entry.value()
     if bin_count == 0:
@@ -1056,7 +1064,7 @@ def reset_data():
     gui.lower_entry.setText(str(min_val))
     gui.upper_entry.setText(str(max_val))
     update_statistics()
-    update_characteristics()
+    update_characteristics()  # Додаємо виклик
     update_data_box()
     gui.distro_ax.clear()
     gui.distro_info_label.setText("")

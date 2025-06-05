@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLineEdit, QLabel, QTabWidget, QTableWidget, QTableWidgetItem,
-                             QDoubleSpinBox, QSpinBox, QTextEdit, QComboBox)
+                             QDoubleSpinBox, QSpinBox, QTextEdit, QComboBox, QScrollArea)
 from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
@@ -17,14 +17,19 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
 
-        # Лівий блок (елементи керування)
+        # Лівий блок (елементи керування) з прокручуванням
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
-        main_layout.addWidget(left_widget, 1)
 
         # Вкладки для організації елементів керування
         self.tabs = QTabWidget()
         left_layout.addWidget(self.tabs)
+
+        # Додаємо QScrollArea для прокручування лівої панелі
+        scroll_area = QScrollArea()
+        scroll_area.setWidget(left_widget)
+        scroll_area.setWidgetResizable(True)  # Дозволяємо віджету розтягуватися
+        main_layout.addWidget(scroll_area, 1)
 
         # Вкладка 1: Основний аналіз
         tab1 = QWidget()
@@ -155,7 +160,7 @@ class MainWindow(QMainWindow):
         self.run_ttest_btn.setEnabled(False)
         tab1_layout.addWidget(self.run_ttest_btn)
 
-        # Кнопка для перевірки гіпотези H0: μ=75
+        # Кнопка для перевірки гіпотези H0: μ=значення
         self.test_h0_btn = QPushButton("Перевірити H0: μ=значення")
         self.test_h0_btn.setEnabled(False)
         tab1_layout.addWidget(self.test_h0_btn)
@@ -168,6 +173,26 @@ class MainWindow(QMainWindow):
         self.char_table.setColumnWidth(0, 150)
         self.char_table.setColumnWidth(1, 100)
         self.char_table.setColumnWidth(2, 100)
+        # Додаємо прокручування для таблиці
+        self.char_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.char_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        # Ініціалізація таблиці з порожніми значеннями
+        characteristics = [
+            ("Середнє", "-", "-"),
+            ("Дисперсія", "-", "-"),
+            ("Середньокв. відхилення", "-", "-"),
+            ("Асиметрія", "-", "-"),
+            ("Ексцес", "-", "-"),
+            ("Контрексцес", "-", "-"),
+            ("Варіація Пірсона", "-", "-"),
+            ("Непарам. коеф. вар.", "-", "-"),
+            ("MAD", "-", "-"),
+            ("Медіана", "-", "-")
+        ]
+        for row, (char, value, ci) in enumerate(characteristics):
+            self.char_table.setItem(row, 0, QTableWidgetItem(char))
+            self.char_table.setItem(row, 1, QTableWidgetItem(value))
+            self.char_table.setItem(row, 2, QTableWidgetItem(ci))
         tab1_layout.addWidget(self.char_table)
 
         # Текстове поле для даних
