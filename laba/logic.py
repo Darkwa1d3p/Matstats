@@ -352,11 +352,12 @@ def calculate_confidence_interval(data, statistic, confidence=0.95):
         return np.sqrt(var_lower), np.sqrt(var_upper)
     return None, None
 
+# Оновлюємо функцію update_characteristics у logic.py
 def update_characteristics():
     global values
     if len(values) == 0:
         gui.char_table.clearContents()
-        gui.char_table.setRowCount(10)
+        gui.char_table.setRowCount(12)  # Збільшуємо кількість рядків для нових характеристик
         gui.char_table.setHorizontalHeaderLabels(["Характеристика", "Зсунена", "Незсунена"])
         QMessageBox.warning(gui, "Попередження", "Немає даних для обчислення характеристик. Завантажте або згенеруйте дані.")
         return
@@ -364,6 +365,7 @@ def update_characteristics():
     precision = gui.precision_entry.value()
     
     gui.char_table.clearContents()
+    gui.char_table.setRowCount(12)  # Збільшуємо для нових характеристик
     
     mean = np.mean(values)
     variance_unbiased = np.var(values, ddof=1)
@@ -375,6 +377,8 @@ def update_characteristics():
     nonparam_var = variation(values)
     mad_val = median_abs_deviation(values)
     med_val = np.median(values)
+    sample_mean = np.mean(values)  # Вибіркове середнє (аналогічно mean)
+    mode_val = pd.Series(values).mode().values[0] if not pd.Series(values).mode().empty else np.nan  # Мода
     
     mean_ci_lower, mean_ci_upper = calculate_confidence_interval(values, "mean", confidence)
     var_ci_lower, var_ci_upper = calculate_confidence_interval(values, "variance", confidence)
@@ -383,6 +387,9 @@ def update_characteristics():
     fmt = f".{precision}f"
     characteristics = [
         ("Середнє", mean, f"[{mean_ci_lower:{fmt}}, {mean_ci_upper:{fmt}}]"),
+        ("Вибіркове середнє", sample_mean, f"[{mean_ci_lower:{fmt}}, {mean_ci_upper:{fmt}}]"),
+        ("Мода", mode_val, "-"),
+        ("Медіана", med_val, "-"),
         ("Дисперсія", variance_unbiased, f"[{var_ci_lower:{fmt}}, {var_ci_upper:{fmt}}]"),
         ("Середньокв. відхилення", std_dev_unbiased, f"[{std_ci_lower:{fmt}}, {std_ci_upper:{fmt}}]"),
         ("Асиметрія", skewness, "-"),
@@ -390,15 +397,13 @@ def update_characteristics():
         ("Контрексцес", counter_kurtosis, "-"),
         ("Варіація Пірсона", pearson_var, "-"),
         ("Непарам. коеф. вар.", nonparam_var, "-"),
-        ("MAD", mad_val, "-"),
-        ("Медіана", med_val, "-")
+        ("MAD", mad_val, "-")
     ]
     
     for row, (char, value, ci) in enumerate(characteristics):
         gui.char_table.setItem(row, 0, QTableWidgetItem(char))
-        gui.char_table.setItem(row, 1, QTableWidgetItem(f"{value:{fmt}}"))
+        gui.char_table.setItem(row, 1, QTableWidgetItem(f"{value:{fmt}}" if not np.isnan(value) else "-"))
         gui.char_table.setItem(row, 2, QTableWidgetItem(ci))
-
 def update_statistics():
     global values
     if len(values) == 0:
@@ -493,6 +498,7 @@ def calculate_bin_count(N):
         bin_count -= 1
     return max(1, bin_count)
 
+# Змінюємо функцію update_histogram
 def update_histogram():
     global values
     if len(values) == 0:
@@ -510,18 +516,19 @@ def update_histogram():
     hist, bins, _ = gui.hist_ax.hist(values, bins=bin_count, color='blue', alpha=0.7, edgecolor='black', density=True)
     gui.hist_ax.set_title('Гістограма часу очікування та щільність')
     
-    mean, std = np.mean(values), np.std(values)
-    x = np.linspace(min(values), max(values), 100)
-    density = norm.pdf(x, mean, std)
-    gui.hist_ax.plot(x, density, 'r-', label='Щільність')
+    # Видаляємо код для малювання нормальної щільності
+    # mean, std = np.mean(values), np.std(values)
+    # x = np.linspace(min(values), max(values), 100)
+    # density = norm.pdf(x, mean, std)
+    # gui.hist_ax.plot(x, density, 'r-', label='Щільність')
     
-    gui.hist_ax.legend()
+    # gui.hist_ax.legend()
     
     x_min, x_max = np.min(values), np.max(values)
     x_range = x_max - x_min if x_max != x_min else 1
     gui.hist_ax.set_xlim(x_min - 0.1 * x_range, x_max + 0.1 * x_range)
     
-    y_max = max(np.max(hist), np.max(density))
+    y_max = np.max(hist)
     gui.hist_ax.set_ylim(0, y_max * 1.1)
     
     gui.hist_canvas.draw()
