@@ -142,13 +142,17 @@ class MainWindow(QMainWindow):
         self.plot_polygon_btn.setEnabled(False)
         tab1_layout.addWidget(self.plot_polygon_btn)
 
-        # Кнопка для генерації синтетичних даних Вейбулла
+        # Кнопки для генерації синтетичних даних
+        self.generate_normal_btn = QPushButton("Згенерувати нормальну вибірку")
+        tab1_layout.addWidget(self.generate_normal_btn)
         self.generate_weibull_btn = QPushButton("Згенерувати вибірку Вейбулла")
         tab1_layout.addWidget(self.generate_weibull_btn)
-
-        # Кнопка для генерації синтетичних даних нормального розподілу
-        self.generate_normal_btn = QPushButton("Згенерувати вибірку нормального розподілу")
-        tab1_layout.addWidget(self.generate_normal_btn)
+        self.generate_exponential_btn = QPushButton("Згенерувати експоненціальну вибірку")
+        tab1_layout.addWidget(self.generate_exponential_btn)
+        self.generate_uniform_btn = QPushButton("Згенерувати уніформну вибірку")
+        tab1_layout.addWidget(self.generate_uniform_btn)
+        self.generate_lognormal_btn = QPushButton("Згенерувати лог-нормальну вибірку")
+        tab1_layout.addWidget(self.generate_lognormal_btn)
 
         # Вибір розподілу та кнопка для t-тесту
         ttest_layout = QHBoxLayout()
@@ -241,8 +245,14 @@ class MainWindow(QMainWindow):
 
         # Список кнопок редагування для активації після завантаження даних
         self.editing_buttons = [
-    self.standardize_btn, self.log_btn, self.shift_btn,
-    self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
-    self.save_btn, self.run_ttest_btn, self.variation_series_btn,
-    self.test_h0_btn, self.plot_polygon_btn
-]
+            self.standardize_btn, self.log_btn, self.shift_btn,
+            self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
+            self.save_btn, self.run_ttest_btn, self.variation_series_btn,
+            self.test_h0_btn, self.plot_polygon_btn
+        ]
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())

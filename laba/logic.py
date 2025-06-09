@@ -1097,7 +1097,80 @@ def reset_data():
     gui.distro_info_label.setText("")
     gui.distro_canvas.draw()
     QMessageBox.information(gui, "Скидання", "Дані повернуто до початкового стану")
+def generate_exponential_data():
+    """Генерація синтетичних даних із експоненціального розподілу."""
+    global values, original_values
+    lambda_param, ok1 = QInputDialog.getDouble(gui, "Параметр експоненціального розподілу", "Введіть параметр (λ):", 1.0, 0.1, 100.0, 2)
+    if not ok1:
+        return
+    size, ok2 = QInputDialog.getInt(gui, "Розмір вибірки", "Введіть розмір вибірки (50-1000):", 50, 50, 1000)
+    if not ok2:
+        return
+    values = np.random.exponential(1/lambda_param, size)
+    original_values = values.copy()
+    update_statistics()
+    update_characteristics()
+    update_data_box()
+    for btn in gui.editing_buttons:
+        btn.setEnabled(True)
+    gui.plot_distro_btn.setEnabled(True)
+    min_val, max_val = np.min(values), np.max(values)
+    gui.lower_entry.setText(str(min_val))
+    gui.upper_entry.setText(str(max_val))
+    QMessageBox.information(gui, "Генерація", f"Згенеровано вибірку з експоненціального розподілу (λ={lambda_param}, розмір={size})")
+    update_histogram()
 
+def generate_uniform_data():
+    """Генерація синтетичних даних із уніформного розподілу."""
+    global values, original_values
+    a, ok1 = QInputDialog.getDouble(gui, "Параметр уніформного розподілу", "Введіть нижню межу (a):", 0.0, -1000.0, 1000.0, 2)
+    if not ok1:
+        return
+    b, ok2 = QInputDialog.getDouble(gui, "Параметр уніформного розподілу", "Введіть верхню межу (b):", a + 0.1, a + 0.1, 1000.0, 2)
+    if not ok2:
+        return
+    size, ok3 = QInputDialog.getInt(gui, "Розмір вибірки", "Введіть розмір вибірки (50-1000):", 50, 50, 1000)
+    if not ok3:
+        return
+    values = np.random.uniform(a, b, size)
+    original_values = values.copy()
+    update_statistics()
+    update_characteristics()
+    update_data_box()
+    for btn in gui.editing_buttons:
+        btn.setEnabled(True)
+    gui.plot_distro_btn.setEnabled(True)
+    min_val, max_val = np.min(values), np.max(values)
+    gui.lower_entry.setText(str(min_val))
+    gui.upper_entry.setText(str(max_val))
+    QMessageBox.information(gui, "Генерація", f"Згенеровано вибірку з уніформного розподілу (a={a}, b={b}, розмір={size})")
+    update_histogram()
+
+def generate_lognormal_data():
+    """Генерація синтетичних даних із лог-нормального розподілу."""
+    global values, original_values
+    mu, ok1 = QInputDialog.getDouble(gui, "Параметр лог-нормального розподілу", "Введіть середнє (μ):", 0.0, -1000.0, 1000.0, 2)
+    if not ok1:
+        return
+    sigma, ok2 = QInputDialog.getDouble(gui, "Параметр лог-нормального розподілу", "Введіть стандартне відхилення (σ):", 1.0, 0.1, 100.0, 2)
+    if not ok2:
+        return
+    size, ok3 = QInputDialog.getInt(gui, "Розмір вибірки", "Введіть розмір вибірки (50-1000):", 50, 50, 1000)
+    if not ok3:
+        return
+    values = np.random.lognormal(mu, sigma, size)
+    original_values = values.copy()
+    update_statistics()
+    update_characteristics()
+    update_data_box()
+    for btn in gui.editing_buttons:
+        btn.setEnabled(True)
+    gui.plot_distro_btn.setEnabled(True)
+    min_val, max_val = np.min(values), np.max(values)
+    gui.lower_entry.setText(str(min_val))
+    gui.upper_entry.setText(str(max_val))
+    QMessageBox.information(gui, "Генерація", f"Згенеровано вибірку з лог-нормального розподілу (μ={mu}, σ={sigma}, розмір={size})")
+    update_histogram()
 
 def initialize_logic(window):
     global gui
@@ -1118,3 +1191,6 @@ def initialize_logic(window):
     gui.generate_normal_btn.clicked.connect(generate_normal_data)
     gui.test_h0_btn.clicked.connect(test_h0_mean)
     gui.plot_polygon_btn.clicked.connect(plot_frequency_polygon)
+    gui.generate_exponential_btn.clicked.connect(generate_exponential_data)
+    gui.generate_uniform_btn.clicked.connect(generate_uniform_data)
+    gui.generate_lognormal_btn.clicked.connect(generate_lognormal_data)
