@@ -274,8 +274,17 @@ class MainWindow(QMainWindow):
         if selected_exp and selected_exp in self.samples:
             sample = self.samples[selected_exp]
             n = len(sample)
-            # Використовуємо формулу Стёрджеса для автоматичного підбору кількості бінів
-            bins = int(np.ceil(np.log2(n) + 1)) if self.bin_entry.value() == 0 else self.bin_entry.value()
+            # Нова формула для визначення кількості класів
+            if n < 100:
+                bins = int(np.sqrt(n))
+                if n % 2 == 0:  # Якщо парне
+                    bins -= 1
+            else:  # n >= 100 (включно)
+                bins = int(np.cbrt(n))  # Кубічний корінь
+                if n % 2 == 0:  # Якщо парне
+                    bins -= 1
+            # Якщо вручну задано кількість класів через self.bin_entry, використовуємо її
+            bins = self.bin_entry.value() if self.bin_entry.value() > 0 else max(1, bins)
             self.hist_ax.clear()
             # Додаємо контури (грані) до стовпців
             self.hist_ax.hist(sample, bins=bins, density=True, rwidth=1, alpha=0.7, color='skyblue', edgecolor='black', linewidth=0.5)
