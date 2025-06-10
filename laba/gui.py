@@ -4,11 +4,14 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPu
 from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
+import numpy as np
+import sys
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Статистичний аналіз")
+        self.samples = {}  # Словник для зберігання вибірок
         self.init_ui()
 
     def init_ui(self):
@@ -81,6 +84,17 @@ class MainWindow(QMainWindow):
         precision_layout.addWidget(self.precision_entry)
         tab1_layout.addLayout(precision_layout)
 
+        # Кількість експериментів для моделювання
+        experiments_layout = QHBoxLayout()
+        experiments_label = QLabel("Кількість експериментів:")
+        self.experiments_entry = QSpinBox()
+        self.experiments_entry.setMinimum(1)
+        self.experiments_entry.setMaximum(1000)
+        self.experiments_entry.setValue(100)
+        experiments_layout.addWidget(experiments_label)
+        experiments_layout.addWidget(self.experiments_entry)
+        tab1_layout.addLayout(experiments_layout)
+
         # Встановлення границь для даних
         bounds_widget = QWidget()
         bounds_layout = QVBoxLayout(bounds_widget)
@@ -129,10 +143,10 @@ class MainWindow(QMainWindow):
         distro_layout = QHBoxLayout()
         distro_label = QLabel("Тип розподілу:")
         self.distro_combo = QComboBox()
-        self.distro_combo.addItems(["Нормальний", "Нормальний (гістограма)", "Експоненціальний", 
-                            "Експоненціальний (гістограма)", "Вейбулла", 
-                            "Вейбулла (гістограма)", "Уніформний (гістограма)", 
-                            "Лог-нормальний (гістограма)"])
+        self.distro_combo.addItems(["Нормальний", "Нормальний (гістограма)", "Експоненціальний",
+                                    "Експоненціальний (гістограма)", "Вейбулла",
+                                    "Вейбулла (гістограма)", "Уніформний (гістограма)", 
+                                    "Лог-нормальний (гістограма)"])
         distro_layout.addWidget(distro_label)
         distro_layout.addWidget(self.distro_combo)
         tab1_layout.addLayout(distro_layout)
@@ -176,36 +190,6 @@ class MainWindow(QMainWindow):
         self.test_h0_btn.setEnabled(False)
         tab1_layout.addWidget(self.test_h0_btn)
 
-        # Таблиця характеристик
-        self.char_table = QTableWidget()
-        self.char_table.setRowCount(10)
-        self.char_table.setColumnCount(3)
-        self.char_table.setHorizontalHeaderLabels(["Характеристика", "Зсунена", "Незсунена"])
-        self.char_table.setColumnWidth(0, 150)
-        self.char_table.setColumnWidth(1, 100)
-        self.char_table.setColumnWidth(2, 100)
-        # Додаємо прокручування для таблиці
-        self.char_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.char_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        # Ініціалізація таблиці з порожніми значеннями
-        characteristics = [
-            ("Середнє", "-", "-"),
-            ("Дисперсія", "-", "-"),
-            ("Середньокв. відхилення", "-", "-"),
-            ("Асиметрія", "-", "-"),
-            ("Ексцес", "-", "-"),
-            ("Контрексцес", "-", "-"),
-            ("Варіація Пірсона", "-", "-"),
-            ("Непарам. коеф. вар.", "-", "-"),
-            ("MAD", "-", "-"),
-            ("Медіана", "-", "-")
-        ]
-        for row, (char, value, ci) in enumerate(characteristics):
-            self.char_table.setItem(row, 0, QTableWidgetItem(char))
-            self.char_table.setItem(row, 1, QTableWidgetItem(value))
-            self.char_table.setItem(row, 2, QTableWidgetItem(ci))
-        tab1_layout.addWidget(self.char_table)
-
         # Текстове поле для даних
         data_widget = QWidget()
         data_layout = QVBoxLayout(data_widget)
@@ -216,6 +200,14 @@ class MainWindow(QMainWindow):
         self.save_btn.setEnabled(False)
         data_layout.addWidget(self.save_btn)
         tab1_layout.addWidget(data_widget)
+
+        # Список кнопок редагування для активації після завантаження даних
+        self.editing_buttons = [
+            self.standardize_btn, self.log_btn, self.shift_btn,
+            self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
+            self.save_btn, self.run_ttest_btn, self.variation_series_btn,
+            self.test_h0_btn, self.plot_polygon_btn, self.run_experiment_btn
+        ]
 
         # Правий блок (графіки)
         right_widget = QWidget()
@@ -230,6 +222,11 @@ class MainWindow(QMainWindow):
         self.hist_tab = QWidget()
         hist_layout = QVBoxLayout(self.hist_tab)
         self.graph_tabs.addTab(self.hist_tab, "Гістограма")
+
+        # Додаємо QComboBox для вибору експерименту
+        self.exp_combo = QComboBox()
+        self.exp_combo.currentTextChanged.connect(self.update_histogram)
+        hist_layout.addWidget(self.exp_combo)
 
         self.hist_fig, self.hist_ax = plt.subplots(figsize=(8, 6))
         self.hist_canvas = FigureCanvas(self.hist_fig)
@@ -247,13 +244,55 @@ class MainWindow(QMainWindow):
         self.distro_info_label = QLabel("")
         distro_layout.addWidget(self.distro_info_label)
 
-        # Список кнопок редагування для активації після завантаження даних
-        self.editing_buttons = [
-        self.standardize_btn, self.log_btn, self.shift_btn,
-        self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
-        self.save_btn, self.run_ttest_btn, self.variation_series_btn,
-        self.test_h0_btn, self.plot_polygon_btn, self.run_experiment_btn  # Додаємо нову кнопку
-    ]
+        # Вкладка з детальними даними
+        self.data_tab = QWidget()
+        data_tab_layout = QVBoxLayout(self.data_tab)
+        self.graph_tabs.addTab(self.data_tab, "Детальні дані")
+
+        self.char_table = QTableWidget()
+        self.char_table.setRowCount(0)  # Ініціалізуємо з нульовою кількістю рядків
+        self.char_table.setColumnCount(9)  # Оновлено до 9 стовпців для t-тесту
+        self.char_table.setHorizontalHeaderLabels([
+            "Розмір вибірки", "Параметр", "Справжнє значення", "Оцінка", "Ст. помилка",
+            "T-статистика", "Критичне значення", "p-значення", "Висновок"
+        ])
+        self.char_table.setColumnWidth(0, 100)
+        self.char_table.setColumnWidth(1, 80)
+        self.char_table.setColumnWidth(2, 120)
+        self.char_table.setColumnWidth(3, 100)
+        self.char_table.setColumnWidth(4, 100)
+        self.char_table.setColumnWidth(5, 100)
+        self.char_table.setColumnWidth(6, 120)
+        self.char_table.setColumnWidth(7, 100)
+        self.char_table.setColumnWidth(8, 150)
+        self.char_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        data_tab_layout.addWidget(self.char_table)
+
+    def update_histogram(self):
+        """Оновлення гістограми на основі вибраного експерименту."""
+        selected_exp = self.exp_combo.currentText()
+        if selected_exp and selected_exp in self.samples:
+            sample = self.samples[selected_exp]
+            n = len(sample)
+            # Використовуємо формулу Стёрджеса для автоматичного підбору кількості бінів
+            bins = int(np.ceil(np.log2(n) + 1)) if self.bin_entry.value() == 0 else self.bin_entry.value()
+            self.hist_ax.clear()
+            # Додаємо контури (грані) до стовпців
+            self.hist_ax.hist(sample, bins=bins, density=True, rwidth=1, alpha=0.7, color='skyblue', edgecolor='black', linewidth=0.5)
+            self.hist_ax.set_title("Гістограма вибірки")
+            self.hist_ax.set_xlabel("Значення")
+            self.hist_ax.set_ylabel("Відносна частота")
+            self.hist_ax.grid(True, linestyle='--', alpha=0.7)
+            # Оновлення інформації про гістограму
+            range_val = np.max(sample) - np.min(sample)
+            bin_width = range_val / bins if bins > 0 else 0
+            self.info_label.setText(
+                f"Кількість класів: {bins}\n"
+                f"Крок розбиття: {bin_width:.4f}\n"
+                f"Розмах: {range_val:.4f}\n"
+                f"Кількість даних: {n}"
+            )
+            self.hist_canvas.draw()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

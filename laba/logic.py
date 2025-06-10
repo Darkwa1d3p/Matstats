@@ -3,6 +3,8 @@ import pandas as pd
 from scipy.stats import skew, kurtosis, variation, median_abs_deviation, norm, t, chi2, sem, kstest, expon, weibull_min, uniform, lognorm, ttest_1samp
 from PyQt5.QtWidgets import (QFileDialog, QMessageBox, QInputDialog, QDialog, QListWidget,
                              QPushButton, QVBoxLayout, QTableWidgetItem, QLabel, QTextEdit)
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor  # Додано імпорт QtGui для QColor
 import matplotlib.pyplot as plt
 from scipy.stats import t as t_dist
 # Глобальні змінні
@@ -943,16 +945,23 @@ def run_ttest():
             gui.char_table.setItem(row * 2 + 1, 5, QTableWidgetItem(res['param2_name']))
 
 
+
+
+
+
+
+
 def run_distribution_experiment():
-    """Проведення експерименту для моделювання вибірки та T-тесту для заданого розподілу."""
+    """Проведення експерименту для моделювання кількох вибірок та перевірки параметра за t-тестом."""
     distro_type = gui.distro_combo_ttest.currentText()
     sizes = [20, 50, 100, 400, 1000, 2000, 5000]
-    num_experiments = 200
+    num_experiments = gui.experiments_entry.value()
     confidence = gui.confidence_entry.value() / 100
     alpha = 1 - confidence
-    critical_value = t_dist.ppf(1 - alpha / 2, num_experiments - 1)  # Критичне значення для T-тесту
-    
-    t_test_results = []
+
+    t_results = []
+    gui.samples = {}  # Очищаємо словник вибірок
+    gui.exp_combo.clear()  # Очищаємо QComboBox
 
     if distro_type == "Нормальний":
         mu_true, ok1 = QInputDialog.getDouble(gui, "Параметр нормального розподілу", "Введіть середнє (μ):", 0.0, -1000.0, 1000.0, 2)
@@ -962,40 +971,56 @@ def run_distribution_experiment():
         if not ok2:
             return
         for size in sizes:
-            result = simulate_and_test_normal(size, mu_true, sigma_true, num_experiments)
-            t_test_results.append({
-                'size': size,
-                'param1_name': 'μ',
-                'param1_mean': result['mu_mean'],
-                'param1_std': result['mu_std'],
-                'param1_t_stat': result['mu_t_stat'],
-                'param1_p_value': result['mu_p_value'],
-                'param2_name': 'σ',
-                'param2_mean': result['sigma_mean'],
-                'param2_std': result['sigma_std'],
-                'param2_t_stat': result['sigma_t_stat'],
-                'param2_p_value': result['sigma_p_value']
-            })
+            for i in range(num_experiments):
+                sample = generate_normal_sample(size, mu_true, sigma_true)
+                sample_mean = np.mean(sample)
+                sample_std = np.std(sample, ddof=1)
+                se = sample_std / np.sqrt(size)
+                t_stat, p_value = ttest_1samp(sample, mu_true)
+                critical_value = t.ppf(1 - alpha/2, size - 1)
+                conclusion = "ВІДХИЛЯТИ H0" if abs(t_stat) > critical_value else "НЕ ВІДХИЛЯТИ H0"
+                t_results.append({
+                    'size': size,
+                    'parameter': 'mu',
+                    'true_value': mu_true,
+                    'estimate': sample_mean,
+                    'std_error': se,
+                    't_statistic': t_stat,
+                    'critical_value': critical_value,
+                    'p_value': p_value,
+                    'conclusion': conclusion
+                })
+                exp_key = f"Розмір: {size} - Експеримент: {i+1}"
+                gui.samples[exp_key] = sample
+                gui.exp_combo.addItem(exp_key, sample)
 
     elif distro_type == "Експоненціальний":
-        lambda_true, ok1 = QInputDialog.getDouble(gui, "Параметр експоненціального розподілу", "Введіть параметр (λ):", 1.0, 0.1, 100.0, 2)
+        lambda_true, ok1 = QInputDialog.getDouble(gui, "Параметр експоненціального розподілу", "Введіть параметр (λ):", 0.25, 0.1, 100.0, 2)
         if not ok1:
             return
         for size in sizes:
-            result = simulate_and_test_exponential(size, lambda_true, num_experiments)
-            t_test_results.append({
-                'size': size,
-                'param1_name': 'λ',
-                'param1_mean': result['lambda_mean'],
-                'param1_std': result['lambda_std'],
-                'param1_t_stat': result['lambda_t_stat'],
-                'param1_p_value': result['lambda_p_value'],
-                'param2_name': None,
-                'param2_mean': None,
-                'param2_std': None,
-                'param2_t_stat': None,
-                'param2_p_value': None
-            })
+            for i in range(num_experiments):
+                sample = generate_exponential_sample(size, lambda_true)
+                sample_mean = np.mean(sample)
+                estimate_lambda = 1 / sample_mean
+                se = (1 / sample_mean) * np.std(sample, ddof=1) / np.sqrt(size)
+                t_stat, p_value = ttest_1samp(1 / sample, lambda_true)
+                critical_value = t.ppf(1 - alpha/2, size - 1)
+                conclusion = "ВІДХИЛЯТИ H0" if abs(t_stat) > critical_value else "НЕ ВІДХИЛЯТИ H0"
+                t_results.append({
+                    'size': size,
+                    'parameter': 'lambda',
+                    'true_value': lambda_true,
+                    'estimate': estimate_lambda,
+                    'std_error': se,
+                    't_statistic': t_stat,
+                    'critical_value': critical_value,
+                    'p_value': p_value,
+                    'conclusion': conclusion
+                })
+                exp_key = f"Розмір: {size} - Експеримент: {i+1}"
+                gui.samples[exp_key] = sample
+                gui.exp_combo.addItem(exp_key, sample)
 
     elif distro_type == "Вейбулла":
         lambda_true, ok1 = QInputDialog.getDouble(gui, "Параметр Вейбулла", "Введіть параметр масштабу (λ):", 2.0, 0.1, 100.0, 2)
@@ -1005,20 +1030,28 @@ def run_distribution_experiment():
         if not ok2:
             return
         for size in sizes:
-            result = simulate_and_test_weibull(size, lambda_true, k_true, num_experiments)
-            t_test_results.append({
-                'size': size,
-                'param1_name': 'λ',
-                'param1_mean': result['lambda_mean'],
-                'param1_std': result['lambda_std'],
-                'param1_t_stat': result['lambda_t_stat'],
-                'param1_p_value': result['lambda_p_value'],
-                'param2_name': 'k',
-                'param2_mean': result['k_mean'],
-                'param2_std': result['k_std'],
-                'param2_t_stat': result['k_t_stat'],
-                'param2_p_value': result['k_p_value']
-            })
+            for i in range(num_experiments):
+                sample = generate_weibull_sample(size, lambda_true, k_true)
+                sample_mean = np.mean(sample)
+                estimate_lambda = sample_mean * np.exp(1/k_true)  # Наближення
+                se = np.std(sample, ddof=1) / np.sqrt(size)
+                t_stat, p_value = ttest_1samp(sample, lambda_true * np.exp(1/k_true))
+                critical_value = t.ppf(1 - alpha/2, size - 1)
+                conclusion = "ВІДХИЛЯТИ H0" if abs(t_stat) > critical_value else "НЕ ВІДХИЛЯТИ H0"
+                t_results.append({
+                    'size': size,
+                    'parameter': 'lambda',
+                    'true_value': lambda_true,
+                    'estimate': estimate_lambda,
+                    'std_error': se,
+                    't_statistic': t_stat,
+                    'critical_value': critical_value,
+                    'p_value': p_value,
+                    'conclusion': conclusion
+                })
+                exp_key = f"Розмір: {size} - Експеримент: {i+1}"
+                gui.samples[exp_key] = sample
+                gui.exp_combo.addItem(exp_key, sample)
 
     elif distro_type == "Уніформний":
         a_true, ok1 = QInputDialog.getDouble(gui, "Параметр уніформного розподілу", "Введіть нижню межу (a):", 0.0, -1000.0, 1000.0, 2)
@@ -1028,20 +1061,28 @@ def run_distribution_experiment():
         if not ok2:
             return
         for size in sizes:
-            result = simulate_and_test_uniform(size, a_true, b_true, num_experiments)
-            t_test_results.append({
-                'size': size,
-                'param1_name': 'a',
-                'param1_mean': result['a_mean'],
-                'param1_std': result['a_std'],
-                'param1_t_stat': result['a_t_stat'],
-                'param1_p_value': result['a_p_value'],
-                'param2_name': 'b',
-                'param2_mean': result['b_mean'],
-                'param2_std': result['b_std'],
-                'param2_t_stat': result['b_t_stat'],
-                'param2_p_value': result['b_p_value']
-            })
+            for i in range(num_experiments):
+                sample = generate_uniform_sample(size, a_true, b_true)
+                sample_mean = np.mean(sample)
+                estimate_a = 2 * sample_mean - b_true
+                se = np.std(sample, ddof=1) / np.sqrt(size)
+                t_stat, p_value = ttest_1samp(sample, (a_true + b_true) / 2)
+                critical_value = t.ppf(1 - alpha/2, size - 1)
+                conclusion = "ВІДХИЛЯТИ H0" if abs(t_stat) > critical_value else "НЕ ВІДХИЛЯТИ H0"
+                t_results.append({
+                    'size': size,
+                    'parameter': 'a',
+                    'true_value': a_true,
+                    'estimate': estimate_a,
+                    'std_error': se,
+                    't_statistic': t_stat,
+                    'critical_value': critical_value,
+                    'p_value': p_value,
+                    'conclusion': conclusion
+                })
+                exp_key = f"Розмір: {size} - Експеримент: {i+1}"
+                gui.samples[exp_key] = sample
+                gui.exp_combo.addItem(exp_key, sample)
 
     elif distro_type == "Лог-нормальний":
         mu_true, ok1 = QInputDialog.getDouble(gui, "Параметр лог-нормального розподілу", "Введіть середнє (μ):", 0.0, -1000.0, 1000.0, 2)
@@ -1051,84 +1092,146 @@ def run_distribution_experiment():
         if not ok2:
             return
         for size in sizes:
-            result = simulate_and_test_lognormal(size, mu_true, sigma_true, num_experiments)
-            t_test_results.append({
-                'size': size,
-                'param1_name': 'μ',
-                'param1_mean': result['mu_mean'],
-                'param1_std': result['mu_std'],
-                'param1_t_stat': result['mu_t_stat'],
-                'param1_p_value': result['mu_p_value'],
-                'param2_name': 'σ',
-                'param2_mean': result['sigma_mean'],
-                'param2_std': result['sigma_std'],
-                'param2_t_stat': result['sigma_t_stat'],
-                'param2_p_value': result['sigma_p_value']
-            })
+            for i in range(num_experiments):
+                sample = generate_lognormal_sample(size, mu_true, sigma_true)
+                sample_mean = np.mean(sample)
+                estimate_mu = np.log(sample_mean) - 0.5 * np.log(1 + (np.var(sample) / (sample_mean ** 2)))
+                se = np.std(np.log(sample), ddof=1) / np.sqrt(size)
+                t_stat, p_value = ttest_1samp(np.log(sample), mu_true)
+                critical_value = t.ppf(1 - alpha/2, size - 1)
+                conclusion = "ВІДХИЛЯТИ H0" if abs(t_stat) > critical_value else "НЕ ВІДХИЛЯТИ H0"
+                t_results.append({
+                    'size': size,
+                    'parameter': 'mu',
+                    'true_value': mu_true,
+                    'estimate': estimate_mu,
+                    'std_error': se,
+                    't_statistic': t_stat,
+                    'critical_value': critical_value,
+                    'p_value': p_value,
+                    'conclusion': conclusion
+                })
+                exp_key = f"Розмір: {size} - Експеримент: {i+1}"
+                gui.samples[exp_key] = sample
+                gui.exp_combo.addItem(exp_key, sample)
 
     # Оновлення таблиці характеристик
     gui.char_table.clearContents()
-    row_count = len(sizes) * (2 if t_test_results[0]['param2_name'] else 1)
-    gui.char_table.setRowCount(row_count)
-    gui.char_table.setColumnCount(7)
-    gui.char_table.setHorizontalHeaderLabels(["Розмір вибірки", "Параметр", "Середнє", "СКВ", "T-статистика", "p-значення", "Висновок"])
+    gui.char_table.setRowCount(len(t_results))
+    gui.char_table.setColumnCount(9)
+    gui.char_table.setHorizontalHeaderLabels([
+        "Розмір вибірки", "Параметр", "Справжнє значення", "Оцінка", "Ст. помилка",
+        "T-статистика", "Критичне значення", "p-значення", "Висновок"
+    ])
     gui.char_table.setColumnWidth(0, 100)
     gui.char_table.setColumnWidth(1, 80)
-    gui.char_table.setColumnWidth(2, 100)
+    gui.char_table.setColumnWidth(2, 120)
     gui.char_table.setColumnWidth(3, 100)
     gui.char_table.setColumnWidth(4, 100)
     gui.char_table.setColumnWidth(5, 100)
-    gui.char_table.setColumnWidth(6, 150)
+    gui.char_table.setColumnWidth(6, 120)
+    gui.char_table.setColumnWidth(7, 100)
+    gui.char_table.setColumnWidth(8, 150)
 
-    for row, res in enumerate(t_test_results):
-        row_idx = row * 2 if res['param2_name'] else row
-        gui.char_table.setItem(row_idx, 0, QTableWidgetItem(str(res['size'])))
-        gui.char_table.setItem(row_idx, 1, QTableWidgetItem(res['param1_name']))
-        gui.char_table.setItem(row_idx, 2, QTableWidgetItem(f"{res['param1_mean']:.4f}"))
-        gui.char_table.setItem(row_idx, 3, QTableWidgetItem(f"{res['param1_std']:.4f}"))
-        gui.char_table.setItem(row_idx, 4, QTableWidgetItem(f"{res['param1_t_stat']:.4f}"))
-        gui.char_table.setItem(row_idx, 5, QTableWidgetItem(f"{res['param1_p_value']:.4f}"))
-        conclusion = "H0 не відхиляється" if res['param1_p_value'] >= alpha else "H0 відхиляється"
-        gui.char_table.setItem(row_idx, 6, QTableWidgetItem(conclusion))
+    for row, res in enumerate(t_results):
+        gui.char_table.setItem(row, 0, QTableWidgetItem(str(res['size'])))
+        gui.char_table.setItem(row, 1, QTableWidgetItem(res['parameter']))
+        gui.char_table.setItem(row, 2, QTableWidgetItem(f"{res['true_value']:.4f}"))
+        gui.char_table.setItem(row, 3, QTableWidgetItem(f"{res['estimate']:.4f}"))
+        gui.char_table.setItem(row, 4, QTableWidgetItem(f"{res['std_error']:.4f}"))
+        gui.char_table.setItem(row, 5, QTableWidgetItem(f"{res['t_statistic']:.4f}"))
+        gui.char_table.setItem(row, 6, QTableWidgetItem(f"{res['critical_value']:.4f}"))
+        gui.char_table.setItem(row, 7, QTableWidgetItem(f"{res['p_value']:.4f}"))
+        item = QTableWidgetItem(res['conclusion'])
+        if res['conclusion'] == "НЕ ВІДХИЛЯТИ H0":
+            item.setForeground(QColor("green"))
+        else:
+            item.setForeground(QColor("red"))
+        gui.char_table.setItem(row, 8, item)
 
-        if res['param2_name']:
-            gui.char_table.insertRow(row_idx + 1)
-            gui.char_table.setItem(row_idx + 1, 0, QTableWidgetItem(str(res['size'])))
-            gui.char_table.setItem(row_idx + 1, 1, QTableWidgetItem(res['param2_name']))
-            gui.char_table.setItem(row_idx + 1, 2, QTableWidgetItem(f"{res['param2_mean']:.4f}"))
-            gui.char_table.setItem(row_idx + 1, 3, QTableWidgetItem(f"{res['param2_std']:.4f}"))
-            gui.char_table.setItem(row_idx + 1, 4, QTableWidgetItem(f"{res['param2_t_stat']:.4f}"))
-            gui.char_table.setItem(row_idx + 1, 5, QTableWidgetItem(f"{res['param2_p_value']:.4f}"))
-            conclusion = "H0 не відхиляється" if res['param2_p_value'] >= alpha else "H0 відхиляється"
-            gui.char_table.setItem(row_idx + 1, 6, QTableWidgetItem(conclusion))
+    # Оновлення графіку розподілів (залишаємо без змін)
+    gui.distro_ax.clear()
+    gui.distro_info_label.setText("")
+    max_samples_to_plot = 5
+    x_min, x_max = float('inf'), float('-inf')
 
-    # Аналіз та коментарі до результатів
-    analysis_text = f"Результати експерименту для {distro_type} розподілу:\n"
-    analysis_text += f"Рівень значущості (α): {alpha:.4f}\n"
-    analysis_text += f"Критичне значення T-статистики: ±{critical_value:.4f}\n\n"
-    for res in t_test_results:
-        analysis_text += f"Розмір вибірки: {res['size']}\n"
-        analysis_text += f"{res['param1_name']}: Середнє={res['param1_mean']:.4f}, СКВ={res['param1_std']:.4f}, T-статистика={res['param1_t_stat']:.4f}, p-значення={res['param1_p_value']:.4f}, "
-        analysis_text += f"Висновок: {'H0 не відхиляється' if res['param1_p_value'] >= alpha else 'H0 відхиляється'}\n"
-        if res['param2_name']:
-            analysis_text += f"{res['param2_name']}: Середнє={res['param2_mean']:.4f}, СКВ={res['param2_std']:.4f}, T-статистика={res['param2_t_stat']:.4f}, p-значення={res['param2_p_value']:.4f}, "
-            analysis_text += f"Висновок: {'H0 не відхиляється' if res['param2_p_value'] >= alpha else 'H0 відхиляється'}\n"
-        analysis_text += "\n"
+    size = sizes[0]
+    for i in range(min(num_experiments, max_samples_to_plot)):
+        if distro_type == "Нормальний":
+            sample = generate_normal_sample(size, mu_true, sigma_true)
+            x_min = min(x_min, np.min(sample))
+            x_max = max(x_max, np.max(sample))
+            sorted_sample = np.sort(sample)
+            empirical_probs = np.arange(1, len(sample) + 1) / len(sample)
+            gui.distro_ax.step(sorted_sample, empirical_probs, alpha=0.3, label=f'Вибірка {i+1}', where='post')
+        elif distro_type == "Експоненціальний":
+            sample = generate_exponential_sample(size, lambda_true)
+            x_min = min(x_min, np.min(sample))
+            x_max = max(x_max, np.max(sample))
+            sorted_sample = np.sort(sample)
+            empirical_probs = np.arange(1, len(sample) + 1) / len(sample)
+            gui.distro_ax.step(sorted_sample, empirical_probs, alpha=0.3, label=f'Вибірка {i+1}', where='post')
+        elif distro_type == "Вейбулла":
+            sample = generate_weibull_sample(size, lambda_true, k_true)
+            x_min = min(x_min, np.min(sample))
+            x_max = max(x_max, np.max(sample))
+            sorted_sample = np.sort(sample)
+            empirical_probs = np.arange(1, len(sample) + 1) / len(sample)
+            gui.distro_ax.step(sorted_sample, empirical_probs, alpha=0.3, label=f'Вибірка {i+1}', where='post')
+        elif distro_type == "Уніформний":
+            sample = generate_uniform_sample(size, a_true, b_true)
+            x_min = min(x_min, np.min(sample))
+            x_max = max(x_max, np.max(sample))
+            sorted_sample = np.sort(sample)
+            empirical_probs = np.arange(1, len(sample) + 1) / len(sample)
+            gui.distro_ax.step(sorted_sample, empirical_probs, alpha=0.3, label=f'Вибірка {i+1}', where='post')
+        elif distro_type == "Лог-нормальний":
+            sample = generate_lognormal_sample(size, mu_true, sigma_true)
+            x_min = min(x_min, np.min(sample))
+            x_max = max(x_max, np.max(sample))
+            sorted_sample = np.sort(sample)
+            empirical_probs = np.arange(1, len(sample) + 1) / len(sample)
+            gui.distro_ax.step(sorted_sample, empirical_probs, alpha=0.3, label=f'Вибірка {i+1}', where='post')
 
-    # Відображення аналізу в діалоговому вікні
-    dialog = QDialog(gui)
-    dialog.setWindowTitle("Аналіз результатів експерименту")
-    dialog.setFixedSize(600, 400)
-    layout = QVBoxLayout(dialog)
-    layout.addWidget(QLabel("Результати експерименту:"))
-    text_edit = QTextEdit()
-    text_edit.setReadOnly(True)
-    text_edit.setPlainText(analysis_text)
-    layout.addWidget(text_edit)
-    close_btn = QPushButton("Закрити")
-    close_btn.clicked.connect(dialog.accept)
-    layout.addWidget(close_btn)
-    dialog.exec_()
+    x_range = x_max - x_min if x_max != x_min else 1
+    x_theor = np.linspace(x_min - 0.1 * x_range, x_max + 0.1 * x_range, 1000)
+    if distro_type == "Нормальний":
+        cdf = norm.cdf(x_theor, mu_true, sigma_true)
+        gui.distro_ax.plot(x_theor, cdf, 'r-', label=f'Теоретичний {distro_type}')
+    elif distro_type == "Експоненціальний":
+        cdf = expon.cdf(x_theor, scale=1/lambda_true)
+        gui.distro_ax.plot(x_theor, cdf, 'r-', label=f'Теоретичний {distro_type}')
+    elif distro_type == "Вейбулла":
+        cdf = weibull_min.cdf(x_theor, k_true, loc=0, scale=lambda_true)
+        gui.distro_ax.plot(x_theor, cdf, 'r-', label=f'Теоретичний {distro_type}')
+    elif distro_type == "Уніформний":
+        cdf = uniform.cdf(x_theor, a_true, b_true - a_true)
+        gui.distro_ax.plot(x_theor, cdf, 'r-', label=f'Теоретичний {distro_type}')
+    elif distro_type == "Лог-нормальний":
+        cdf = lognorm.cdf(x_theor, sigma_true, scale=np.exp(mu_true))
+        gui.distro_ax.plot(x_theor, cdf, 'r-', label=f'Теоретичний {distro_type}')
+
+    gui.distro_ax.set_title(f'Порівняння емпіричних та теоретичного {distro_type} розподілів')
+    gui.distro_ax.set_xlabel('Значення')
+    gui.distro_ax.set_ylabel('Ймовірність')
+    gui.distro_ax.legend()
+    gui.distro_ax.grid(True, linestyle='--', alpha=0.7)
+    gui.distro_ax.set_xlim(x_min - 0.1 * x_range, x_max + 0.1 * x_range)
+    gui.distro_ax.set_ylim(0, 1.1)
+    gui.distro_canvas.draw()
+
+    # Виводимо загальну статистику
+    t_df = pd.DataFrame(t_results)
+    success_rate = (t_df['conclusion'] == "НЕ ВІДХИЛЯТИ H0").mean() * 100
+    gui.distro_info_label.setText(
+        f"Загальна статистика:\n"
+        f"- Кількість експериментів: {len(t_results)}\n"
+        f"- Частка невідхилених H0: {success_rate:.2f}%\n"
+        f"- Рівень довіри: {confidence * 100:.0f}%"
+    )
+
+
+
 
 def standardize_data():
     global values
