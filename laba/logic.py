@@ -4,7 +4,7 @@ from scipy.stats import skew, kurtosis, variation, median_abs_deviation, norm, t
 from PyQt5.QtWidgets import (QFileDialog, QMessageBox, QInputDialog, QDialog, QListWidget,
                              QPushButton, QVBoxLayout, QTableWidgetItem, QLabel, QTextEdit)
 import matplotlib.pyplot as plt
-
+from scipy.stats import t as t_dist
 # Глобальні змінні
 values = np.array([])
 original_values = np.array([])
@@ -548,68 +548,72 @@ def plot_distribution():
     gui.distro_info_label.setText("")
     
     confidence = gui.confidence_entry.value() / 100
+    n = len(values)
     
-    n_bins = gui.bin_entry.value()
-    if n_bins == 0:
-        n_bins = calculate_bin_count(len(values))
+    # Сортуємо дані для побудови емпіричної CDF
+    sorted_values = np.sort(values)
+    empirical_probs = np.arange(1, n + 1) / n
+    
+    # Обчислення меж для осі X
+    x_min, x_max = np.min(values), np.max(values)
+    x_range = x_max - x_min if x_max != x_min else 1
+    x_margin = 0.1 * x_range
+    x_lower = x_min - x_margin
+    x_upper = x_max + x_margin
+    x_theor = np.linspace(x_lower, x_upper, 1000)
+    
+    # Обчислення довірчого інтервалу для Колмогорова-Смірнова
+    epsilon = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(n)
     
     if distro_type == "Нормальний":
-        bin_dt, bin_gr = np.histogram(values, bins=n_bins)
-        Y = np.cumsum(bin_dt) / len(values)
+        mean, std = np.mean(values), np.std(values, ddof=1)
         
-        gui.distro_ax.plot([bin_gr[0], bin_gr[0]], [0, Y[0]], color='green', linewidth=2, label='Емпіричний розподіл')
-        for i in range(len(Y)):
-            gui.distro_ax.plot([bin_gr[i], bin_gr[i+1]], [Y[i], Y[i]], color='green', linewidth=2)
-        gui.distro_ax.plot([bin_gr[-1], bin_gr[-1]], [Y[-1], 1], color='green', linewidth=2)
+        # Емпірична CDF
+        gui.distro_ax.step(sorted_values, empirical_probs, color='green', label='Емпіричний розподіл', where='post')
         
-        mean, std = np.mean(values), np.std(values)
-        
-        x_min, x_max = np.min(values), np.max(values)
-        x_range = x_max - x_min if x_max != x_min else 1
-        x_margin = 0.1 * x_range
-        x_lower = x_min - x_margin
-        x_upper = x_max + x_margin
-        
-        x_theor = np.linspace(x_lower, x_upper, 1000)
+        # Теоретична CDF
         cdf = norm.cdf(x_theor, mean, std)
-        gui.distro_ax.plot(x_theor, cdf, label='Нормальний розподіл', color='red')
+        gui.distro_ax.plot(x_theor, cdf, 'r-', label=f'Нормальний (μ={mean:.4f}, σ={std:.4f})')
         
-        n = len(values)
-        epsilon = np.sqrt(1/(2*n) * np.log(2/(1-confidence)))
+        # Довірчий інтервал
         gui.distro_ax.fill_between(x_theor, np.maximum(cdf - epsilon, 0), np.minimum(cdf + epsilon, 1), 
                                    color='red', alpha=0.2, label='Довірчий інтервал')
         
         gui.distro_ax.set_title('Порівняння емпіричного та нормального розподілів')
         gui.distro_ax.set_xlabel('Час очікування (хв)')
         gui.distro_ax.set_ylabel('Ймовірність')
+        
         ks_statistic, ks_pvalue = kstest(values, 'norm', args=(mean, std))
-        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
-        conclusion = "Розподіл нормальний" if ks_statistic < critical_value else "Розподіл не нормальний"
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(n)
+        conclusion = "Розподіл відповідає нормальному" if ks_statistic < critical_value else "Розподіл не відповідає нормальному"
+        
+        ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
+                   f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                   f"Висновок: {conclusion}")
+        gui.distro_info_label.setText(ks_text)
     
     elif distro_type == "Нормальний (гістограма)":
-        mean = np.mean(values)
-        std = np.std(values)
+        mean, std = np.mean(values), np.std(values, ddof=1)
         
-        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
-        hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
+        # Гістограма
+        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else calculate_bin_count(n)
+        gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
         
-        x = np.linspace(min(values), max(values), 100)
-        normal_pdf = (1 / (std * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - mean) / std) ** 2)
-        gui.distro_ax.plot(x, normal_pdf, 'r-', label=f'Нормальний (μ={mean:.4f}, σ={std:.4f})')
+        # Теоретична щільність
+        pdf = norm.pdf(x_theor, mean, std)
+        gui.distro_ax.plot(x_theor, pdf, 'r-', label=f'Нормальний (μ={mean:.4f}, σ={std:.4f})')
         
         gui.distro_ax.set_title('Гістограма та щільність нормального розподілу')
         gui.distro_ax.set_xlabel('Час очікування (хв)')
         gui.distro_ax.set_ylabel('Щільність')
-        gui.distro_ax.legend()
         
         ks_statistic, ks_pvalue = kstest(values, 'norm', args=(mean, std))
-        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(n)
         conclusion = "Розподіл відповідає нормальному" if ks_statistic < critical_value else "Розподіл не відповідає нормальному"
         
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
-                  f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
-                  f"Висновок: {conclusion}\n")
-        
+                   f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                   f"Висновок: {conclusion}")
         gui.distro_info_label.setText(ks_text)
     
     elif distro_type == "Експоненціальний":
@@ -617,47 +621,35 @@ def plot_distribution():
             QMessageBox.critical(gui, "Помилка", "Експоненціальний розподіл можливий лише для невід’ємних значень")
             return
         
-        sorted_values = np.sort(values)
-        n = len(sorted_values)
-        empirical_probs = np.arange(1, n + 1) / (n + 1)
-        y_values = -np.log(1 - empirical_probs)
-        
-        y_max = np.max(y_values)
-        if y_max > 0:
-            y_values_normalized = y_values / y_max
-        else:
-            y_values_normalized = y_values
-        
         mean = np.mean(values)
         if mean == 0:
             QMessageBox.critical(gui, "Помилка", "Середнє значення дорівнює нулю. Неможливо оцінити параметр.")
             return
         lambda_param = 1 / mean
         
-        gui.distro_ax.scatter(sorted_values, y_values_normalized, color='green', label='Дані', s=50)
+        # Емпірична CDF
+        gui.distro_ax.step(sorted_values, empirical_probs, color='green', label='Емпіричний розподіл', where='post')
         
-        x_theor = np.linspace(0, np.max(sorted_values) * 1.2, 100)
-        y_theor = lambda_param * x_theor
-        if y_max > 0:
-            y_theor_normalized = y_theor / y_max
-        else:
-            y_theor_normalized = y_theor
-        gui.distro_ax.plot(x_theor, y_theor_normalized, color='blue', linestyle='--', label=f'Експоненціальний розподіл (λ={lambda_param:.4f})')
+        # Теоретична CDF
+        cdf = expon.cdf(x_theor, scale=1/lambda_param)
+        gui.distro_ax.plot(x_theor, cdf, 'r-', label=f'Експоненціальний (λ={lambda_param:.4f})')
         
-        x_min, x_max = np.min(values), np.max(values)
-        x_range = x_max - x_min if x_max != x_min else 1
-        x_margin = 0.1 * x_range
-        x_lower = max(0, x_min - x_margin)
-        x_upper = x_max + x_margin
-        gui.distro_ax.set_xlim(x_lower, x_upper)
-        gui.distro_ax.set_ylim(0, 1.1)
+        # Довірчий інтервал
+        gui.distro_ax.fill_between(x_theor, np.maximum(cdf - epsilon, 0), np.minimum(cdf + epsilon, 1), 
+                                   color='red', alpha=0.2, label='Довірчий інтервал')
         
-        gui.distro_ax.set_title('Імовірнісна сітка експоненціального розподілу')
-        gui.distro_ax.set_xlabel('Значення (Час очікування, хв)')
-        gui.distro_ax.set_ylabel('Нормалізоване -ln(1 - F(x))')
+        gui.distro_ax.set_title('Порівняння емпіричного та експоненціального розподілів')
+        gui.distro_ax.set_xlabel('Час очікування (хв)')
+        gui.distro_ax.set_ylabel('Ймовірність')
+        
         ks_statistic, ks_pvalue = kstest(values, 'expon', args=(0, mean))
-        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(n)
         conclusion = "Розподіл відповідає експоненціальному" if ks_statistic < critical_value else "Розподіл не відповідає експоненціальному"
+        
+        ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
+                   f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                   f"Висновок: {conclusion}")
+        gui.distro_info_label.setText(ks_text)
     
     elif distro_type == "Експоненціальний (гістограма)":
         if np.any(values < 0):
@@ -670,26 +662,25 @@ def plot_distribution():
             return
         lambda_param = 1 / mean
         
-        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
-        hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
+        # Гістограма
+        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else calculate_bin_count(n)
+        gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
         
-        x = np.linspace(min(values), max(values), 100)
-        expon_pdf = lambda_param * np.exp(-lambda_param * x)
-        gui.distro_ax.plot(x, expon_pdf, 'r-', label=f'Експоненціальний (λ={lambda_param:.4f})')
+        # Теоретична щільність
+        pdf = expon.pdf(x_theor, scale=1/lambda_param)
+        gui.distro_ax.plot(x_theor, pdf, 'r-', label=f'Експоненціальний (λ={lambda_param:.4f})')
         
         gui.distro_ax.set_title('Гістограма та щільність експоненціального розподілу')
         gui.distro_ax.set_xlabel('Час очікування (хв)')
         gui.distro_ax.set_ylabel('Щільність')
-        gui.distro_ax.legend()
         
         ks_statistic, ks_pvalue = kstest(values, 'expon', args=(0, mean))
-        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(n)
         conclusion = "Розподіл відповідає експоненціальному" if ks_statistic < critical_value else "Розподіл не відповідає експоненціальному"
         
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
-                  f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
-                  f"Висновок: {conclusion}\n")
-        
+                   f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                   f"Висновок: {conclusion}")
         gui.distro_info_label.setText(ks_text)
     
     elif distro_type == "Вейбулла":
@@ -699,116 +690,116 @@ def plot_distribution():
         
         k_est, loc, lambda_est = weibull_min.fit(values, floc=0)
         
-        gui.distro_ax.clear()
+        # Емпірична CDF
+        gui.distro_ax.step(sorted_values, empirical_probs, color='green', label='Емпіричний розподіл', where='post')
         
-        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
-        hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
+        # Теоретична CDF
+        cdf = weibull_min.cdf(x_theor, k_est, loc=loc, scale=lambda_est)
+        gui.distro_ax.plot(x_theor, cdf, 'r-', label=f'Вейбулла (λ={lambda_est:.4f}, k={k_est:.4f})')
         
-        x = np.linspace(min(values), max(values), 100)
-        weibull_pdf = (k_est / lambda_est) * (x / lambda_est) ** (k_est - 1) * np.exp(-(x / lambda_est) ** k_est)
-        gui.distro_ax.plot(x, weibull_pdf, 'r-', label=f'Вейбулла (λ={lambda_est:.4f}, k={k_est:.4f})')
+        # Довірчий інтервал
+        gui.distro_ax.fill_between(x_theor, np.maximum(cdf - epsilon, 0), np.minimum(cdf + epsilon, 1), 
+                                   color='red', alpha=0.2, label='Довірчий інтервал')
         
-        gui.distro_ax.set_title('Гістограма та щільність розподілу Вейбулла')
+        gui.distro_ax.set_title('Порівняння емпіричного та розподілу Вейбулла')
         gui.distro_ax.set_xlabel('Час очікування (хв)')
-        gui.distro_ax.set_ylabel('Щільність')
-        gui.distro_ax.legend()
+        gui.distro_ax.set_ylabel('Ймовірність')
         
         ks_statistic, ks_pvalue = kstest(values, 'weibull_min', args=(k_est, loc, lambda_est))
-        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(n)
         conclusion = "Розподіл відповідає Вейбулла" if ks_statistic < critical_value else "Розподіл не відповідає Вейбулла"
         
-        sizes = [20, 50, 100, 400, 1000, 2000, 5000]
-        t_test_results = []
-        for size in sizes:
-            result = simulate_and_test_weibull(size, lambda_est, k_est)
-            t_test_results.append({
-                'size': size,
-                'lambda_mean': result['lambda_mean'],
-                'lambda_std': result['lambda_std'],
-                'lambda_t_stat': result['lambda_t_stat'],
-                'lambda_p_value': result['lambda_p_value'],
-                'k_mean': result['k_mean'],
-                'k_std': result['k_std'],
-                'k_t_stat': result['k_t_stat'],
-                'k_p_value': result['k_p_value']
-            })
-        
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
-                  f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
-                  f"Висновок: {conclusion}\n\n"
-                  f"T-тест для оцінки параметрів Вейбулла:\n")
-        for res in t_test_results:
-            ks_text += (f"\nРозмір вибірки: {res['size']}\n"
-                       f"λ: середнє={res['lambda_mean']:.4f}, std={res['lambda_std']:.4f}, "
-                       f"T-статистика={res['lambda_t_stat']:.4f}, p-value={res['lambda_p_value']:.4f}\n"
-                       f"k: середнє={res['k_mean']:.4f}, std={res['k_std']:.4f}, "
-                       f"T-статистика={res['k_t_stat']:.4f}, p-value={res['k_p_value']:.4f}\n")
-        
+                   f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                   f"Висновок: {conclusion}")
         gui.distro_info_label.setText(ks_text)
     
     elif distro_type == "Уніформний (гістограма)":
-        a = np.min(values)
-        b = np.max(values)
+        a, b = np.min(values), np.max(values)
         if a >= b:
             QMessageBox.critical(gui, "Помилка", "Мінімальне значення має бути меншим за максимальне.")
             return
         
-        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
-        hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
+        # Гістограма
+        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else calculate_bin_count(n)
+        gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
         
-        x = np.linspace(min(values), max(values), 100)
-        uniform_pdf = np.ones_like(x) / (b - a)
-        uniform_pdf[(x < a) | (x > b)] = 0
-        gui.distro_ax.plot(x, uniform_pdf, 'r-', label=f'Уніформний (a={a:.4f}, b={b:.4f})')
+        # Теоретична щільність
+        pdf = uniform.pdf(x_theor, a, b - a)
+        gui.distro_ax.plot(x_theor, pdf, 'r-', label=f'Уніформний (a={a:.4f}, b={b:.4f})')
         
         gui.distro_ax.set_title('Гістограма та щільність уніформного розподілу')
         gui.distro_ax.set_xlabel('Час очікування (хв)')
         gui.distro_ax.set_ylabel('Щільність')
-        gui.distro_ax.legend()
         
         ks_statistic, ks_pvalue = kstest(values, 'uniform', args=(a, b - a))
-        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(n)
         conclusion = "Розподіл відповідає уніформному" if ks_statistic < critical_value else "Розподіл не відповідає уніформному"
         
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
                    f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
-                   f"Висновок: {conclusion}\n")
-        
+                   f"Висновок: {conclusion}")
         gui.distro_info_label.setText(ks_text)
-    
+    elif distro_type == "Вейбулла (гістограма)":
+        if np.any(values < 0):
+            QMessageBox.critical(gui, "Помилка", "Розподіл Вейбулла можливий лише для невід’ємних значень")
+            return
+        
+        k_est, loc, lambda_est = weibull_min.fit(values, floc=0)
+        
+        # Гістограма
+        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else calculate_bin_count(n)
+        gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
+        
+        # Теоретична щільність
+        pdf = weibull_min.pdf(x_theor, k_est, loc=loc, scale=lambda_est)
+        gui.distro_ax.plot(x_theor, pdf, 'r-', label=f'Вейбулла (λ={lambda_est:.4f}, k={k_est:.4f})')
+        
+        gui.distro_ax.set_title('Гістограма та щільність розподілу Вейбулла')
+        gui.distro_ax.set_xlabel('Час очікування (хв)')
+        gui.distro_ax.set_ylabel('Щільність')
+        
+        ks_statistic, ks_pvalue = kstest(values, 'weibull_min', args=(k_est, loc, lambda_est))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(n)
+        conclusion = "Розподіл відповідає Вейбулла" if ks_statistic < critical_value else "Розподіл не відповідає Вейбулла"
+        
+        ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
+                f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
+                f"Висновок: {conclusion}")
+        gui.distro_info_label.setText(ks_text)
     elif distro_type == "Лог-нормальний (гістограма)":
         if np.any(values <= 0):
             QMessageBox.critical(gui, "Помилка", "Лог-нормальний розподіл можливий лише для додатних значень")
             return
         
         log_values = np.log(values)
-        mu = np.mean(log_values)
-        sigma = np.std(log_values)
+        mu, sigma = np.mean(log_values), np.std(log_values, ddof=1)
         
-        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else int(np.sqrt(len(values)))
-        hist, bins, _ = gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True)
+        # Гістограма
+        n_bins = gui.bin_entry.value() if gui.bin_entry.value() > 0 else calculate_bin_count(n)
+        gui.distro_ax.hist(values, bins=n_bins, color='green', alpha=0.7, edgecolor='black', density=True, label='Гістограма')
         
-        x = np.linspace(min(values), max(values), 100)
-        lognorm_pdf = lognorm.pdf(x, sigma, scale=np.exp(mu))
-        gui.distro_ax.plot(x, lognorm_pdf, 'r-', label=f'Лог-нормальний (μ={mu:.4f}, σ={sigma:.4f})')
+        # Теоретична щільність
+        pdf = lognorm.pdf(x_theor, sigma, scale=np.exp(mu))
+        gui.distro_ax.plot(x_theor, pdf, 'r-', label=f'Лог-нормальний (μ={mu:.4f}, σ={sigma:.4f})')
         
         gui.distro_ax.set_title('Гістограма та щільність лог-нормального розподілу')
         gui.distro_ax.set_xlabel('Час очікування (хв)')
         gui.distro_ax.set_ylabel('Щільність')
-        gui.distro_ax.legend()
         
         ks_statistic, ks_pvalue = kstest(values, 'lognorm', args=(sigma, 0, np.exp(mu)))
-        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(len(values))
+        critical_value = np.sqrt(-0.5 * np.log((1 - confidence) / 2)) / np.sqrt(n)
         conclusion = "Розподіл відповідає лог-нормальному" if ks_statistic < critical_value else "Розподіл не відповідає лог-нормальному"
         
         ks_text = (f"Тест Колмогорова-Смірнова:\nСтатистика: {ks_statistic:.4f}\n"
                    f"Критичне значення: {critical_value:.4f}\np-значення: {ks_pvalue:.4f}\n"
-                   f"Висновок: {conclusion}\n")
-        
+                   f"Висновок: {conclusion}")
         gui.distro_info_label.setText(ks_text)
     
     gui.distro_ax.legend()
     gui.distro_ax.grid(True, linestyle='--', alpha=0.7)
+    gui.distro_ax.set_xlim(x_lower, x_upper)
+    gui.distro_ax.set_ylim(0, 1.1)
     gui.distro_canvas.draw()
 
 def run_ttest():
@@ -950,6 +941,194 @@ def run_ttest():
             gui.char_table.setItem(row * 2 + 1, 3, QTableWidgetItem(f"{res['param2_t_stat']:.4f}"))
             gui.char_table.setItem(row * 2 + 1, 4, QTableWidgetItem(f"{res['param2_p_value']:.4f}"))
             gui.char_table.setItem(row * 2 + 1, 5, QTableWidgetItem(res['param2_name']))
+
+
+def run_distribution_experiment():
+    """Проведення експерименту для моделювання вибірки та T-тесту для заданого розподілу."""
+    distro_type = gui.distro_combo_ttest.currentText()
+    sizes = [20, 50, 100, 400, 1000, 2000, 5000]
+    num_experiments = 200
+    confidence = gui.confidence_entry.value() / 100
+    alpha = 1 - confidence
+    critical_value = t_dist.ppf(1 - alpha / 2, num_experiments - 1)  # Критичне значення для T-тесту
+    
+    t_test_results = []
+
+    if distro_type == "Нормальний":
+        mu_true, ok1 = QInputDialog.getDouble(gui, "Параметр нормального розподілу", "Введіть середнє (μ):", 0.0, -1000.0, 1000.0, 2)
+        if not ok1:
+            return
+        sigma_true, ok2 = QInputDialog.getDouble(gui, "Параметр нормального розподілу", "Введіть стандартне відхилення (σ):", 1.0, 0.1, 100.0, 2)
+        if not ok2:
+            return
+        for size in sizes:
+            result = simulate_and_test_normal(size, mu_true, sigma_true, num_experiments)
+            t_test_results.append({
+                'size': size,
+                'param1_name': 'μ',
+                'param1_mean': result['mu_mean'],
+                'param1_std': result['mu_std'],
+                'param1_t_stat': result['mu_t_stat'],
+                'param1_p_value': result['mu_p_value'],
+                'param2_name': 'σ',
+                'param2_mean': result['sigma_mean'],
+                'param2_std': result['sigma_std'],
+                'param2_t_stat': result['sigma_t_stat'],
+                'param2_p_value': result['sigma_p_value']
+            })
+
+    elif distro_type == "Експоненціальний":
+        lambda_true, ok1 = QInputDialog.getDouble(gui, "Параметр експоненціального розподілу", "Введіть параметр (λ):", 1.0, 0.1, 100.0, 2)
+        if not ok1:
+            return
+        for size in sizes:
+            result = simulate_and_test_exponential(size, lambda_true, num_experiments)
+            t_test_results.append({
+                'size': size,
+                'param1_name': 'λ',
+                'param1_mean': result['lambda_mean'],
+                'param1_std': result['lambda_std'],
+                'param1_t_stat': result['lambda_t_stat'],
+                'param1_p_value': result['lambda_p_value'],
+                'param2_name': None,
+                'param2_mean': None,
+                'param2_std': None,
+                'param2_t_stat': None,
+                'param2_p_value': None
+            })
+
+    elif distro_type == "Вейбулла":
+        lambda_true, ok1 = QInputDialog.getDouble(gui, "Параметр Вейбулла", "Введіть параметр масштабу (λ):", 2.0, 0.1, 100.0, 2)
+        if not ok1:
+            return
+        k_true, ok2 = QInputDialog.getDouble(gui, "Параметр Вейбулла", "Введіть параметр форми (k):", 1.5, 0.1, 10.0, 2)
+        if not ok2:
+            return
+        for size in sizes:
+            result = simulate_and_test_weibull(size, lambda_true, k_true, num_experiments)
+            t_test_results.append({
+                'size': size,
+                'param1_name': 'λ',
+                'param1_mean': result['lambda_mean'],
+                'param1_std': result['lambda_std'],
+                'param1_t_stat': result['lambda_t_stat'],
+                'param1_p_value': result['lambda_p_value'],
+                'param2_name': 'k',
+                'param2_mean': result['k_mean'],
+                'param2_std': result['k_std'],
+                'param2_t_stat': result['k_t_stat'],
+                'param2_p_value': result['k_p_value']
+            })
+
+    elif distro_type == "Уніформний":
+        a_true, ok1 = QInputDialog.getDouble(gui, "Параметр уніформного розподілу", "Введіть нижню межу (a):", 0.0, -1000.0, 1000.0, 2)
+        if not ok1:
+            return
+        b_true, ok2 = QInputDialog.getDouble(gui, "Параметр уніформного розподілу", "Введіть верхню межу (b):", 1.0, a_true + 0.1, 1000.0, 2)
+        if not ok2:
+            return
+        for size in sizes:
+            result = simulate_and_test_uniform(size, a_true, b_true, num_experiments)
+            t_test_results.append({
+                'size': size,
+                'param1_name': 'a',
+                'param1_mean': result['a_mean'],
+                'param1_std': result['a_std'],
+                'param1_t_stat': result['a_t_stat'],
+                'param1_p_value': result['a_p_value'],
+                'param2_name': 'b',
+                'param2_mean': result['b_mean'],
+                'param2_std': result['b_std'],
+                'param2_t_stat': result['b_t_stat'],
+                'param2_p_value': result['b_p_value']
+            })
+
+    elif distro_type == "Лог-нормальний":
+        mu_true, ok1 = QInputDialog.getDouble(gui, "Параметр лог-нормального розподілу", "Введіть середнє (μ):", 0.0, -1000.0, 1000.0, 2)
+        if not ok1:
+            return
+        sigma_true, ok2 = QInputDialog.getDouble(gui, "Параметр лог-нормального розподілу", "Введіть стандартне відхилення (σ):", 1.0, 0.1, 100.0, 2)
+        if not ok2:
+            return
+        for size in sizes:
+            result = simulate_and_test_lognormal(size, mu_true, sigma_true, num_experiments)
+            t_test_results.append({
+                'size': size,
+                'param1_name': 'μ',
+                'param1_mean': result['mu_mean'],
+                'param1_std': result['mu_std'],
+                'param1_t_stat': result['mu_t_stat'],
+                'param1_p_value': result['mu_p_value'],
+                'param2_name': 'σ',
+                'param2_mean': result['sigma_mean'],
+                'param2_std': result['sigma_std'],
+                'param2_t_stat': result['sigma_t_stat'],
+                'param2_p_value': result['sigma_p_value']
+            })
+
+    # Оновлення таблиці характеристик
+    gui.char_table.clearContents()
+    row_count = len(sizes) * (2 if t_test_results[0]['param2_name'] else 1)
+    gui.char_table.setRowCount(row_count)
+    gui.char_table.setColumnCount(7)
+    gui.char_table.setHorizontalHeaderLabels(["Розмір вибірки", "Параметр", "Середнє", "СКВ", "T-статистика", "p-значення", "Висновок"])
+    gui.char_table.setColumnWidth(0, 100)
+    gui.char_table.setColumnWidth(1, 80)
+    gui.char_table.setColumnWidth(2, 100)
+    gui.char_table.setColumnWidth(3, 100)
+    gui.char_table.setColumnWidth(4, 100)
+    gui.char_table.setColumnWidth(5, 100)
+    gui.char_table.setColumnWidth(6, 150)
+
+    for row, res in enumerate(t_test_results):
+        row_idx = row * 2 if res['param2_name'] else row
+        gui.char_table.setItem(row_idx, 0, QTableWidgetItem(str(res['size'])))
+        gui.char_table.setItem(row_idx, 1, QTableWidgetItem(res['param1_name']))
+        gui.char_table.setItem(row_idx, 2, QTableWidgetItem(f"{res['param1_mean']:.4f}"))
+        gui.char_table.setItem(row_idx, 3, QTableWidgetItem(f"{res['param1_std']:.4f}"))
+        gui.char_table.setItem(row_idx, 4, QTableWidgetItem(f"{res['param1_t_stat']:.4f}"))
+        gui.char_table.setItem(row_idx, 5, QTableWidgetItem(f"{res['param1_p_value']:.4f}"))
+        conclusion = "H0 не відхиляється" if res['param1_p_value'] >= alpha else "H0 відхиляється"
+        gui.char_table.setItem(row_idx, 6, QTableWidgetItem(conclusion))
+
+        if res['param2_name']:
+            gui.char_table.insertRow(row_idx + 1)
+            gui.char_table.setItem(row_idx + 1, 0, QTableWidgetItem(str(res['size'])))
+            gui.char_table.setItem(row_idx + 1, 1, QTableWidgetItem(res['param2_name']))
+            gui.char_table.setItem(row_idx + 1, 2, QTableWidgetItem(f"{res['param2_mean']:.4f}"))
+            gui.char_table.setItem(row_idx + 1, 3, QTableWidgetItem(f"{res['param2_std']:.4f}"))
+            gui.char_table.setItem(row_idx + 1, 4, QTableWidgetItem(f"{res['param2_t_stat']:.4f}"))
+            gui.char_table.setItem(row_idx + 1, 5, QTableWidgetItem(f"{res['param2_p_value']:.4f}"))
+            conclusion = "H0 не відхиляється" if res['param2_p_value'] >= alpha else "H0 відхиляється"
+            gui.char_table.setItem(row_idx + 1, 6, QTableWidgetItem(conclusion))
+
+    # Аналіз та коментарі до результатів
+    analysis_text = f"Результати експерименту для {distro_type} розподілу:\n"
+    analysis_text += f"Рівень значущості (α): {alpha:.4f}\n"
+    analysis_text += f"Критичне значення T-статистики: ±{critical_value:.4f}\n\n"
+    for res in t_test_results:
+        analysis_text += f"Розмір вибірки: {res['size']}\n"
+        analysis_text += f"{res['param1_name']}: Середнє={res['param1_mean']:.4f}, СКВ={res['param1_std']:.4f}, T-статистика={res['param1_t_stat']:.4f}, p-значення={res['param1_p_value']:.4f}, "
+        analysis_text += f"Висновок: {'H0 не відхиляється' if res['param1_p_value'] >= alpha else 'H0 відхиляється'}\n"
+        if res['param2_name']:
+            analysis_text += f"{res['param2_name']}: Середнє={res['param2_mean']:.4f}, СКВ={res['param2_std']:.4f}, T-статистика={res['param2_t_stat']:.4f}, p-значення={res['param2_p_value']:.4f}, "
+            analysis_text += f"Висновок: {'H0 не відхиляється' if res['param2_p_value'] >= alpha else 'H0 відхиляється'}\n"
+        analysis_text += "\n"
+
+    # Відображення аналізу в діалоговому вікні
+    dialog = QDialog(gui)
+    dialog.setWindowTitle("Аналіз результатів експерименту")
+    dialog.setFixedSize(600, 400)
+    layout = QVBoxLayout(dialog)
+    layout.addWidget(QLabel("Результати експерименту:"))
+    text_edit = QTextEdit()
+    text_edit.setReadOnly(True)
+    text_edit.setPlainText(analysis_text)
+    layout.addWidget(text_edit)
+    close_btn = QPushButton("Закрити")
+    close_btn.clicked.connect(dialog.accept)
+    layout.addWidget(close_btn)
+    dialog.exec_()
 
 def standardize_data():
     global values
@@ -1194,3 +1373,4 @@ def initialize_logic(window):
     gui.generate_exponential_btn.clicked.connect(generate_exponential_data)
     gui.generate_uniform_btn.clicked.connect(generate_uniform_data)
     gui.generate_lognormal_btn.clicked.connect(generate_lognormal_data)
+    gui.run_experiment_btn.clicked.connect(run_distribution_experiment)  # Нова кнопка

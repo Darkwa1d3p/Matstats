@@ -129,9 +129,10 @@ class MainWindow(QMainWindow):
         distro_layout = QHBoxLayout()
         distro_label = QLabel("Тип розподілу:")
         self.distro_combo = QComboBox()
-        self.distro_combo.addItems(["Нормальний", "Нормальний (гістограма)", "Експоненціальний",
-                                    "Експоненціальний (гістограма)", "Вейбулла",
-                                    "Уніформний (гістограма)", "Лог-нормальний (гістограма)"])
+        self.distro_combo.addItems(["Нормальний", "Нормальний (гістограма)", "Експоненціальний", 
+                            "Експоненціальний (гістограма)", "Вейбулла", 
+                            "Вейбулла (гістограма)", "Уніформний (гістограма)", 
+                            "Лог-нормальний (гістограма)"])
         distro_layout.addWidget(distro_label)
         distro_layout.addWidget(self.distro_combo)
         tab1_layout.addLayout(distro_layout)
@@ -166,7 +167,10 @@ class MainWindow(QMainWindow):
         self.run_ttest_btn = QPushButton("Запустити t-тест")
         self.run_ttest_btn.setEnabled(False)
         tab1_layout.addWidget(self.run_ttest_btn)
-
+        # Кнопка для запуску експерименту
+        self.run_experiment_btn = QPushButton("Запустити експеримент")
+        self.run_experiment_btn.setEnabled(True)  # Доступна без завантаження даних
+        tab1_layout.addWidget(self.run_experiment_btn)
         # Кнопка для перевірки гіпотези H0: μ=значення
         self.test_h0_btn = QPushButton("Перевірити H0: μ=значення")
         self.test_h0_btn.setEnabled(False)
@@ -245,11 +249,11 @@ class MainWindow(QMainWindow):
 
         # Список кнопок редагування для активації після завантаження даних
         self.editing_buttons = [
-            self.standardize_btn, self.log_btn, self.shift_btn,
-            self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
-            self.save_btn, self.run_ttest_btn, self.variation_series_btn,
-            self.test_h0_btn, self.plot_polygon_btn
-        ]
+        self.standardize_btn, self.log_btn, self.shift_btn,
+        self.outliers_btn, self.reset_btn, self.apply_bounds_btn,
+        self.save_btn, self.run_ttest_btn, self.variation_series_btn,
+        self.test_h0_btn, self.plot_polygon_btn, self.run_experiment_btn  # Додаємо нову кнопку
+    ]
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
